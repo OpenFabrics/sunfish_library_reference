@@ -1,0 +1,26 @@
+{
+    "@odata.type": "#Zone.v1_6_1.Zone",
+    "Id": "2",
+    "Name": "CXL Zone 2",
+    "Description": "CXL Zone 2",
+    "Status": {
+        "State": "Enabled",
+        "Health": "OK"
+    },
+    "ZoneType": "ZoneOfEndpoints",
+    "Links": {
+        "Endpoints": [
+            {
+                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/I2"
+            },
+            {
+                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/T2"
+            },
+            {
+                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/1"
+            }
+        ]
+    },
+    "Oem": {},
+    "@odata.id": "/redfish/v1/Fabrics/CXL/Zones/2"
+}

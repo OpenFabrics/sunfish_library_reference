@@ -1,0 +1,38 @@
+{
+    "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/T1",
+    "@odata.type": "#Endpoint.v1_7_0.Endpoint",
+    "ConnectedEntities": [
+        {
+            "EntityLink": {
+                "@odata.id": "/redfish/v1/Chassis/PCXL1/PCIeDevices/1/CXLLogicalDevices/1"
+            },
+            "EntityRole": "Target",
+            "EntityType": "CXLDevice",
+            "Identifiers": [
+                {
+                    "DurableName": "4C-1D-96-FF-FE-DD-D8-35:1",
+                    "DurableNameFormat": "GCXLID"
+                }
+            ]
+        },
+        {
+            "EntityLink": {
+                "@odata.id": "/redfish/v1/Chassis/PCXL1/Processors/FPGA"
+            },
+            "EntityRole": "Target",
+            "EntityType": "Processor"
+        }
+    ],
+    "Description": "CXL Device Type 1 target endpoint",
+    "EndpointProtocol": "CXL",
+    "Id": "T1",
+    "Links": {
+        "Ports": [
+            {
+                "@odata.id": "/redfish/v1/Chassis/PCXL1/FabricAdapters/1/Ports/1"
+            }
+        ]
+    },
+    "Name": "CXL Device Type 1 endpoint",
+    "Oem": {}
+}

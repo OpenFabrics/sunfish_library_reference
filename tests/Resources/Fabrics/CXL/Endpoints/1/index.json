@@ -1,0 +1,18 @@
+{
+	"@odata.type": "#Endpoint.v1_7_0.Endpoint",
+	"Id": "1",
+	"Name": "CXL Switch",
+	"Description": "CXL Switch endpoint",
+	"EndpointProtocol": "CXL",
+	"ConnectedEntities": [
+		{
+			"EntityType": "Switch",
+			"EntityRole": "Target",
+			"EntityLink": {
+				"@odata.id": "/redfish/v1/Fabrics/CXL/Switches/CXL"
+			}
+		}
+	],
+	"Oem": { },
+	"@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/1"
+}
