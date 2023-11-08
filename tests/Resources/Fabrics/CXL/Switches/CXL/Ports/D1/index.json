@@ -1,0 +1,43 @@
+{
+    "@odata.id": "/redfish/v1/Fabrics/CXL/Switches/CXL/Ports/D1",
+    "@odata.type": "#Port.v1_7_0.Port",
+    "ActiveWidth": 16,
+    "CapableProtocolVersions": [
+        "1.1",
+        "2.0"
+    ],
+    "CurrentProtocolVersion": "2.0",
+    "CurrentSpeedGbps": 256,
+    "Description": "CXL Downstream Port 1 in switch",
+    "Id": "D1",
+    "InterfaceEnabled": true,
+    "LinkNetworkTechnology": "PCIe",
+    "LinkState": "Enabled",
+    "LinkStatus": "LinkUp",
+    "Links": {
+        "AssociatedEndpoints": [
+            {
+                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/T1"
+            }
+        ],
+        "ConnectedPorts": [
+            {
+                "@odata.id": "/redfish/v1/Chassis/PCXL1/FabricAdapters/1/Ports/1"
+            }
+        ]
+    },
+    "MaxSpeedGbps": 512,
+    "Name": "CXL Port 1",
+    "Oem": {},
+    "PortId": "D1",
+    "PortMedium": "Optical",
+    "PortProtocol": "CXL",
+    "PortType": "DownstreamPort",
+    "RemotePortId": "4C-1D-96-FF-FE-DD-D8-D1",
+    "Status": {
+        "Health": "OK",
+        "HealthRollup": "OK",
+        "State": "Enabled"
+    },
+    "Width": 8
+}
