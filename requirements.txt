@@ -1,1 +1,5 @@
 poetry
+pytest
+requests
+pytest_httpserver
+pytest-order

@@ -3,7 +3,7 @@
     "@odata.type": "#EventService/SubscriptionsCollection.EventService/SubscriptionsCollection",
     "Members": [
         {
-            "@odata.id": "/redfish/v1/EventService/Subscriptions/e779b699-b4c6-45ec-b313-bb53117504b1"
+            "@odata.id": "/redfish/v1/EventService/Subscriptions/aeb3df78-672e-4577-b6b8-ae135bd07666"
         }
     ],
     "Members@odata.count": 1,

@@ -1,0 +1,13 @@
+{
+    "@odata.id": "/redfish/v1/EventService/Subscriptions/aeb3df78-672e-4577-b6b8-ae135bd07666",
+    "@odata.type": "#EventDestination.v1_13_2.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "ExcludeRegistryPrefixes": [
+        "Basic"
+    ],
+    "Id": "aeb3df78-672e-4577-b6b8-ae135bd07666",
+    "RegistryPrefixes": [
+        "ResourceEvent"
+    ]
+}

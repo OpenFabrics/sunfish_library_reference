@@ -103,6 +103,6 @@ class DestinationError(BaseException):
     """
     
     def __init__(self):
-        message = "[Error] Impossible to reach Destination"
+        message = "[Error] Cannot reach Destination"
         self.message = message
         super().__init__(self.message)

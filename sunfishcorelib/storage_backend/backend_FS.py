@@ -2,20 +2,20 @@
 # This software is available to you under a BSD 3-Clause License. 
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 
+import json
 import logging
 import os
 import shutil
 
-from flask import json
 from sunfishcorelib.storage_backend.backend_interface import BackendInterface
 from sunfishcorelib.storage_backend import utils
 from sunfishcorelib.sunfishcorelib.exceptions import *
 from sunfishcorelib.events import event_handler
 class BackendFS(BackendInterface):
 
-    def __init__(self, conf, redfish_root):
-        self.root = conf["fs_root"]
-        self.redfish_root = redfish_root
+    def __init__(self, conf):
+        self.root = conf["backend_conf"]["fs_root"]
+        self.redfish_root = conf["redfish_root"]
 
     def read(self, path:str):
         """Loads the content of the index.json corresponding to the requested path.

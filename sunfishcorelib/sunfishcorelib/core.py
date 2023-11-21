@@ -4,9 +4,11 @@
 
 import os
 import uuid
+from sunfishcorelib.sunfishcorelib.object_handler import ObjectHandler
 from sunfishcorelib.storage_backend.backend_FS import BackendFS
 from sunfishcorelib.sunfishcorelib.exceptions import CollectionNotSupported, InvalidPath
 from sunfishcorelib.events.event_handler import EventHandler
+from sunfishcorelib.events.subscription_handler import SubscriptionHandler
 
 class Core:
 
@@ -16,12 +18,17 @@ class Core:
         Args:
             conf (dict): dictionary where are specified the storage implementation type and the specific backend configuration.
         """
+
+        self.conf = conf
+        
         if conf['storage_backend'] == 'FS':
-            self.redfish_root = conf["redfish_root"]
-            self.storage_backend = BackendFS(conf["backend_conf"], self.redfish_root)
-            self.event_handler = EventHandler(self.storage_backend, conf["backend_conf"]["fs_root"], self.redfish_root)
+            self.storage_backend = BackendFS(self.conf)
         # elif conf['storage_backend'] == '<OTHER STORAGE>':
             # ...
+            
+        self.event_handler = EventHandler(self)
+        self.subscription_handler = SubscriptionHandler(self)
+        self.object_handler = ObjectHandler(self)
     
     def get_object(self, path):
         """Calls the correspondent read function from the backend implementation and checks that the path is valid.
@@ -52,23 +59,32 @@ class Core:
             str|exception: return the stored resource or an exception in case of fault.
         """
         
-         # generate unique uuid
+        ## before to add the ID and to call the methods there should be the json validation
+
+        # generate unique uuid
         id = str(uuid.uuid4())
         to_add = {
             'Id': id,
             '@odata.id': os.path.join(path,id)
         }
         payload.update(to_add)
-
-        ## controlla odata.type
-        if 'Destination' in payload:
-            return self.event_handler.new_subscription(payload)
-
-        if '@odata.type' in payload:
-            if "Collection" in payload['@odata.type']:
-                raise CollectionNotSupported()
         
-        # call function from backend
+        type = self.__check_type(payload)
+
+        if "Collection" in type:
+            raise CollectionNotSupported()
+        elif type == "EventDestination":
+            try:
+                self.subscription_handler.new_subscription(payload)
+            except Exception as e:
+                return str(e)
+        else:
+            try:
+                handlerfunc = getattr(ObjectHandler, payload['@odata.type'].split(".")[-1])
+                handlerfunc(self, payload)
+            except Exception as e:
+                return str(e)
+        # Call function from backend
         return self.storage_backend.write(payload)
 
     def replace_object(self, payload):
@@ -81,10 +97,15 @@ class Core:
             str|exception: return the replaced resource or an exception in case of fault.
         """
         ## controlla odata.type
-        if "Context" in payload:
+        type = self.__check_type(payload)
+
+        if "Collection" in type:
+            raise CollectionNotSupported()
+        elif type == "EventDestination":
             self.event_handler.delete_subscription(payload)
             self.event_handler.new_subscription(payload)
-        # call function from backend
+
+        # Call function from backend
         return self.storage_backend.replace(payload)
     
     def patch_object(self, payload):
@@ -96,11 +117,16 @@ class Core:
         Returns:
             str|exception: return the updated resource or an exception in case of fault.
         """
-        if "Context" in payload:
+        ## controlla odata.type
+        type = self.__check_type(payload)
+        if "Collection" in type:
+            raise CollectionNotSupported()
+        elif type == "EventDestination":
             self.event_handler.delete_subscription(payload)
             resp = self.storage_backend.patch(payload)
             self.event_handler.new_subscription(resp)
             return resp
+                    
         # call function from backend
         return self.storage_backend.patch(payload)
 
@@ -113,14 +139,26 @@ class Core:
         Returns:
             str|exception: return confirmation string or an exception in case of fault.
         """
-        ## delete subscription
         ## controlla odata.type
         payload = self.storage_backend.read(path)
-        if "Context" in payload:
+        type = self.__check_type(payload)
+        if type == "EventDestination":
             self.event_handler.delete_subscription(payload)
 
         # call function from backend
         return self.storage_backend.remove(path)
     
     def handle_event(self, payload):
+        for event in payload["Events"]:
+            try:
+                handlerfunc = getattr(EventHandler, event['MessageId'].split(".")[-1])
+                handlerfunc(self, event)
+            except AttributeError:
+                pass
         return self.event_handler.new_event(payload)
+            
+    def __check_type(self, payload):
+        ## controlla odata.type
+        type = payload["@odata.type"]
+        type = type.split('.')[0]
+        return type.replace("#", "")
