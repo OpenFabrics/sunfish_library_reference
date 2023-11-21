@@ -1,0 +1,11 @@
+{
+    "@odata.id": "/redfish/v1/EventService/Subscriptions",
+    "@odata.type": "#EventService/SubscriptionsCollection.EventService/SubscriptionsCollection",
+    "Members": [
+        {
+            "@odata.id": "/redfish/v1/EventService/Subscriptions/e779b699-b4c6-45ec-b313-bb53117504b1"
+        }
+    ],
+    "Members@odata.count": 1,
+    "Name": "EventService/Subscriptions Collection"
+}

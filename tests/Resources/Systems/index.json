@@ -1,7 +1,10 @@
 {
-    "@odata.type": "#ComputerSystemCollection.ComputerSystemCollection",
-    "Name": "Computer System Collection",
-    "Members@odata.count": 0,
+    "@odata.id": "/redfish/v1/Systems",
+    "@odata.type": "#SystemsCollection.SystemsCollection",
     "Members": [],
-    "@odata.id": "/redfish/v1/Systems"
+    "Members@odata.count": 0,
+    "Name": "Systems Collection",
+    "Systems/CXL": {
+        "@odata.id": "/redfish/v1/Systems/CXL"
+    }
 }
