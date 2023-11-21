@@ -7,10 +7,10 @@ import os
 import shutil
 
 from flask import json
-from storage_backend.backend_interface import BackendInterface
-from storage_backend import utils
-from sunfishcorelib.exceptions import *
-
+from sunfishcorelib.storage_backend.backend_interface import BackendInterface
+from sunfishcorelib.storage_backend import utils
+from sunfishcorelib.sunfishcorelib.exceptions import *
+from sunfishcorelib.events import event_handler
 class BackendFS(BackendInterface):
 
     def __init__(self, conf, redfish_root):
@@ -64,9 +64,11 @@ class BackendFS(BackendInterface):
 
         id = id.split('/')
         for index in range(2, len(id[1:])):
-            present = False
             to_check = os.path.join('/'.join(id[:index]), 'index.json')
-            to_check = utils.path_exist(to_check, self.root)
+            to_check = os.path.join(os.getcwd(), self.root, to_check)
+            if os.path.exists(to_check) is False:
+                raise ActionNotAllowed()
+            
             with open(to_check, 'r') as data_json:
                     data = json.load(data_json)
                     data_json.close()
@@ -90,6 +92,7 @@ class BackendFS(BackendInterface):
         collection_type = id[last_element-1]
         resource_id = id[last_element]
         full_collection = ''
+        # create the path of the full collection if it is a subcollection
         if len(id) > 2:
             for i in range(0, last_element-1):
                 full_collection = full_collection + id[i] + '/'
@@ -109,18 +112,24 @@ class BackendFS(BackendInterface):
                 fd.write(json.dumps(config, indent=4, sort_keys=True))
                 fd.close()
 
-            # update file Resources/index.json
-            utils.update_collections_parent_json(path=os.path.join(parent_path, "index.json"), type=collection_type, link=self.redfish_root+collection_type)
-        else:
-            # checks if there is already a resource with the same id
-            index_path = os.path.join(collection_path, "index.json")
-            if utils.check_unique_id(index_path, payload['@odata.id']) is False:
-                raise AlreadyExists(payload['@odata.id'])
+            # check if the index.json representing the collection exists. In case it doesnt it will create index.json with the collection template
+            if os.path.exists(os.path.join(parent_path, "index.json")):
+                collection_name = collection_type.split('/')[-1]
+                utils.update_collections_parent_json(path=os.path.join(parent_path, "index.json"), type=collection_name, link=self.redfish_root+collection_type)
+            else:
+                utils.generate_collection(collection_type)
+        # Not needed because now we generate a unique uuid for each POST
+        # else:
+        #     # checks if there is already a resource with the same id
+        #     index_path = os.path.join(collection_path, "index.json")
+        #     if utils.check_unique_id(index_path, payload['@odata.id']) is False:
+        #         raise AlreadyExists(payload['@odata.id'])
                 
 
-        # create folder of the element and write index.json (assuming that the payload is valid i dont use any kind of template to write index.json)
+        # creates folder of the element and write index.json (assuming that the payload is valid i dont use any kind of template to write index.json)
         folder_id_path = os.path.join(collection_path, resource_id) # .../Resources/[folder]/[id]
 
+        # creates the folder of the element
         if not os.path.exists(folder_id_path):
             os.mkdir(folder_id_path)
 
@@ -129,8 +138,17 @@ class BackendFS(BackendInterface):
             fd.close()
         
         json_collection_path = os.path.join(collection_path, 'index.json')
-        utils.update_collections_json(path=json_collection_path, link=payload['@odata.id'])
+
+        # updates the collection with the new element created
+        if os.path.exists(json_collection_path):
+            utils.update_collections_json(path=json_collection_path, link=payload['@odata.id'])
+        else:
+            utils.generate_collection(collection_type)
         
+        # Events have to be handled in a different way. 
+        # To check if write() is called by an event subscription (EventDestination format) I check 'Destination' because
+        # it is the only required required property that other objects doesnt have
+
         logging.info('BackendFS: [POST] success')
         return payload
         
@@ -198,7 +216,9 @@ class BackendFS(BackendInterface):
         except FileNotFoundError as e:
             raise ResourceNotFound(resource_id)
 
-        result:str = payload['@odata.id']
+        result:str = self.read(payload["@odata.id"])
+        #result:str = payload['@odata.id']
+
         return result
 
 #   #   TO FIX: the code doesnt consider the linked resources. If the remove function is called, it removes only the folders but it doesnt update all the linked resources 
@@ -242,12 +262,12 @@ class BackendFS(BackendInterface):
             data = {
                 "@odata.id":os.path.join(self.redfish_root, resource_id)
             }
-
-            if 'Members' in pdata:
+            collection_name = resource_id.split('/')[-1]
+            if 'Members' in pdata and data in pdata['Members']:
                 pdata['Members'].remove(data)
                 pdata['Members@odata.count'] = int(pdata['Members@odata.count']) - 1
-            elif resource_id in pdata:
-                pdata[resource_id].remove(data)
+            elif collection_name in pdata:
+                del pdata[collection_name]
 
             with open(json_path,"w") as file:
                 json.dump(pdata,file, indent=4, sort_keys=True)
@@ -293,4 +313,3 @@ class BackendFS(BackendInterface):
                         to_replace = False
 
         return "DELETE: file removed."
-    

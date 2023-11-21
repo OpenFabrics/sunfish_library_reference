@@ -76,7 +76,33 @@ class IllegalCollectionType(BaseException):
         message -- explanation of the error
     """
     
-    def __init__(self, type):
+    def __init__(self, path):
         self.path = path
         self.message = "[Error] Illegal Collection type: " + type
+        super().__init__(self.message)
+
+class IllegalSubscription(BaseException):
+    """
+        Exception raised when the subscription is not valid
+
+        Attributes:
+        message -- explanation of the error
+    """
+    
+    def __init__(self):
+        self.message = "[Error] Illegal subscription."
+        super().__init__(self.message)
+
+class DestinationError(BaseException):
+    """
+        Exception raised when the resource is not found.
+
+        Attributes:
+        resource_id -- resource which caused the error
+        message -- explanation of the error
+    """
+    
+    def __init__(self):
+        message = "[Error] Impossible to reach Destination"
+        self.message = message
         super().__init__(self.message)
