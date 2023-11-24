@@ -1,0 +1,21 @@
+# Copyright IBM Corp. 2023
+# This software is available to you under a BSD 3-Clause License. 
+# The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
+
+name: Testing Sunfish
+on:
+  workflow_dispatch:
+  push:
+    branches: main
+  pull_request:
+    types: [opened,synchronize]
+jobs:
+  Test-Sunfish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - uses: "actions/checkout@v3"
+      - run: pip3 install -r requirements.txt
+      - run: python -m pytest tests/test_sunfishcore_library.py -vvvv

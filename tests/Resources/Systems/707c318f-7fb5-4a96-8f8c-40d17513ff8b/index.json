@@ -1,0 +1,58 @@
+{
+    "@odata.id": "/redfish/v1/Systems/707c318f-7fb5-4a96-8f8c-40d17513ff8b",
+    "@odata.type": "#ComputerSystem.1.00.0.ComputerSystem",
+    "Boot": {
+        "BootSourceOverrideEnabled": "Once",
+        "BootSourceOverrideSupported": [
+            "None",
+            "Pxe",
+            "Floppy",
+            "Cd",
+            "Usb"
+        ],
+        "BootSourceOverrideTarget": "Pxe",
+        "UefiTargetBootSourceOverride": "uefi device path"
+    },
+    "FabricAdapters": [
+        {
+            "@odata.id": "/redfish/1/Systems/1234/FabricAdapters"
+        }
+    ],
+    "Id": "707c318f-7fb5-4a96-8f8c-40d17513ff8b",
+    "IndicatorLED": "Off",
+    "Links": {
+        "Chassis": [
+            {
+                "@odata.id": "/redfish/v1/Chassis/1"
+            }
+        ]
+    },
+    "Manufacturer": "Manufacturer Name",
+    "Memory": {
+        "Status": {
+            "Health": "OK",
+            "HealthRollUp": "OK",
+            "State": "Disabled"
+        },
+        "TotalSystemMemoryGB": 12
+    },
+    "Model": "Model Name",
+    "Name": "Compute Node 1234",
+    "Power": "On",
+    "Processors": {
+        "Count": 4,
+        "Model": "Multi-Core Intel(R) Xeon(R) processor 7xxx Series",
+        "Status": {
+            "Health": "OK",
+            "HealthRollUp": "OK",
+            "State": "Enabled"
+        }
+    },
+    "SKU": "sku",
+    "Status": {
+        "Health": "OK",
+        "HealthRollUp": "OK",
+        "State": "Enabled"
+    },
+    "SystemType": "Physical"
+}

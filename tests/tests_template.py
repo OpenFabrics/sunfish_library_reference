@@ -2,32 +2,72 @@
 # This software is available to you under a BSD 3-Clause License. 
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 
-test_post_zones_1 = {
-    "@odata.type": "#Zone.v1_6_1.Zone",
-    "Id": "1",
-    "Name": "CXL Zone 1",
-    "Description": "CXL Zone 1",
-    "Status": {
-        "State": "Enabled",
-        "Health": "OK"
+setup_subscriptions = {
+    "@odata.id": "/redfish/v1/EventService/Subscriptions",
+    "@odata.type": "#EventService/SubscriptionsCollection.EventService/SubscriptionsCollection",
+    "Members": [
+        
+    ],
+    "Members@odata.count": 0,
+    "Name": "EventService/Subscriptions Collection"
+}
+
+test_post_system = {
+    "@odata.type": "#ComputerSystem.1.00.0.ComputerSystem",
+    "Boot": {
+        "BootSourceOverrideEnabled": "Once",
+        "BootSourceOverrideSupported": [
+            "None",
+            "Pxe",
+            "Floppy",
+            "Cd",
+            "Usb"
+        ],
+        "BootSourceOverrideTarget": "Pxe",
+        "UefiTargetBootSourceOverride": "uefi device path"
     },
-    "ZoneType": "ZoneOfEndpoints",
+    "FabricAdapters": [
+        {
+            "@odata.id": "/redfish/1/Systems/1234/FabricAdapters"
+        }
+    ],
+    "IndicatorLED": "Off",
     "Links": {
-        "Endpoints": [
+        "Chassis": [
             {
-                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/I1"
-            },
-            {
-                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/T1"
-            },
-            {
-                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/1"
+                "@odata.id": "/redfish/v1/Chassis/1"
             }
         ]
     },
-    "Oem": {},
-    "@odata.id": "/redfish/v1/Fabrics/CXL/Zones/1"
-    }
+    "Manufacturer": "Manufacturer Name",
+    "Memory": {
+        "Status": {
+            "Health": "OK",
+            "HealthRollUp": "OK",
+            "State": "Disabled"
+        },
+        "TotalSystemMemoryGB": 12
+    },
+    "Model": "Model Name",
+    "Name": "Compute Node 1234",
+    "Power": "On",
+    "Processors": {
+        "Count": 4,
+        "Model": "Multi-Core Intel(R) Xeon(R) processor 7xxx Series",
+        "Status": {
+            "Health": "OK",
+            "HealthRollUp": "OK",
+            "State": "Enabled"
+        }
+    },
+    "SKU": "sku",
+    "Status": {
+        "Health": "OK",
+        "HealthRollUp": "OK",
+        "State": "Enabled"
+    },
+    "SystemType": "Physical"
+}
 
 test_post_ports = {
     "@odata.type": "#Port.v1_7_0.Port",
@@ -81,39 +121,56 @@ test_collection = {
 }
 
 test_put = {
-    "@odata.type": "#Zone.v1_6_1.Zone",
-    "Id": "1",
-    "Name": "CXL Zone 1",
-    "Description": "CXL Zone 1",
+    "@odata.type": "#ComputerSystem.1.00.0.ComputerSystem",
+    "Boot": {
+        "BootSourceOverrideEnabled": "Once",
+        "BootSourceOverrideSupported": [
+            "None"
+        ],
+        "BootSourceOverrideTarget": "Pxe",
+        "UefiTargetBootSourceOverride": "uefi device path"
+    },
+    "FabricAdapters": [
+        {
+            "@odata.id": "/redfish/1/Systems/1234/FabricAdapters"
+        }
+    ],
+    "IndicatorLED": "Off",
+    "Memory": {
+        "Status": {
+            "Health": "OK",
+            "HealthRollUp": "OK",
+            "State": "Disabled"
+        },
+        "TotalSystemMemoryGB": 8
+    },
+    "Model": "Model Name",
+    "Name": "Compute Node PUT",
+    "Power": "On",
+    "Processors": {
+        "Count": 4,
+        "Model": "Multi-Core Intel(R) Xeon(R) processor 7xxx Series",
+        "Status": {
+            "Health": "OK",
+            "HealthRollUp": "OK",
+            "State": "Enabled"
+        }
+    },
+    "SKU": "sku",
+    "Status": {
+        "Health": "OK",
+        "HealthRollUp": "OK",
+        "State": "Enabled"
+    },
+    "SystemType": "Physical"
+}
+
+test_patch = {
+    "@odata.type": "#ComputerSystem.1.0.0.ComputerSystem",
     "Status": {
         "State": "Disabled",
         "Health": "OK"
-    },
-    "ZoneType": "ZoneOfEndpoints",
-    "Links": {
-        "Endpoints": [
-            {
-                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/I1"
-            },
-            {
-                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/T1"
-            },
-            {
-                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/1"
-            }
-        ]
-    },
-    "Oem": {},
-    "@odata.id": "/redfish/v1/Fabrics/CXL/Zones/1"
-}
-
-
-test_patch = {
-    "Status": {
-        "State": "Enabled",
-        "Health": "OK"
-    },
-    "@odata.id": "/redfish/v1/Fabrics/CXL/Zones/1"
+    }
 }
 
 test_update_exception = {
@@ -133,4 +190,58 @@ test_update_exception = {
             "HealthRollUp": "OK"
         }
     }
+}
+
+# SUBSCRIPTIONS
+sub1 = {
+    "@odata.type": "#EventDestination.v1_13_2.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "RegistryPrefixes": [
+        "ResourceEvent"
+    ]
+}
+sub2 = {
+    "@odata.type": "#EventDestination.v1_13_2.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "ExcludeRegistryPrefixes": [
+        "ResourceEvent"
+    ]
+}
+sub3 = {
+    "@odata.type": "#EventDestination.v1_13_2.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "RegistryPrefixes": [
+        "ResourceEvent"
+    ],
+    "ExcludeMessageIds": [
+        "ResourceEvent.1.0.ResourceCreated"
+    ]
+}
+
+wrong_sub = {
+    "@odata.type": "#EventDestination.v1_13_2.EventDestination",
+    "Destination": "http://wrong_dest:8080",
+    "EventFormatType": "Event",
+    "RegistryPrefixes": [
+        "ResourceEvent"
+    ]
+}
+
+event = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "Event Array",
+    "Context": "ContosoWebClient",
+    "Events": [
+        {
+            "EventId": "4593",
+            "Severity": "OK",
+            "Message": "The resource has been created successfully.",
+            "MessageId": "ResourceEvent.1.0.ResourceCreated",
+            "MessageArgs": [
+            ]
+        }
+    ]
 }

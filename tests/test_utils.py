@@ -25,11 +25,8 @@ def check_delete(path):
         return False
     return True
 
-# def check_update(payload, redfish_root):
-#     path = os.path.join(get_resource_path(payload, redfish_root), 'index.json')
-#     modification_time = time.ctime(os.path.getctime(path))
-#     current_time = time.ctime(time.time())
-#     # print('modification ', modification_time, ' now ', current_time)
-#     if current_time == modification_time:
-#         return True
-#     return False
+def get_id(root, collection):
+    list = os.listdir(os.path.join(os.getcwd(), root, collection))
+    for dir in list:
+        if dir != '.DS_Store' and dir != 'index.json':
+            return dir

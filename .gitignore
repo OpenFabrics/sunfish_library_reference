@@ -3,6 +3,7 @@
 
 .DS_Store
 tests/.pytest_cache
+.vscode
 
 # Remove directory __pycache__
 __pycache__

@@ -2,10 +2,9 @@
 name = "sunfishcorelib"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
+authors = ["Erika Rosaverde <erikarosaverde@gmail.com>"]
 readme = "README.md"
 packages = [
-	{ include = "storage_backend" },
 	{ include = "sunfishcorelib" }
 ]
 
