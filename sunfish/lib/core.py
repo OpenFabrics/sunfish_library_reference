@@ -4,11 +4,11 @@
 
 import os
 import uuid
-from sunfishcorelib.sunfishcorelib.object_handler import ObjectHandler
-from sunfishcorelib.storage_backend.backend_FS import BackendFS
-from sunfishcorelib.sunfishcorelib.exceptions import CollectionNotSupported, InvalidPath
-from sunfishcorelib.events.event_handler import EventHandler
-from sunfishcorelib.events.subscription_handler import SubscriptionHandler
+from sunfish.lib.object_handler import ObjectHandler
+from sunfish.storage.backend_FS import BackendFS
+from sunfish.lib.exceptions import CollectionNotSupported, InvalidPath
+from sunfish.events.event_handler import EventHandler
+from sunfish.events.subscription_handler import SubscriptionHandler
 
 class Core:
 

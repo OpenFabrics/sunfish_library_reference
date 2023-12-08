@@ -5,7 +5,7 @@
 import json
 import os
 
-from sunfishcorelib.sunfishcorelib.exceptions import *
+from sunfish.lib.exceptions import *
 
 # Missing:
 ## EventType not handle because Event is considered as the only value for the property

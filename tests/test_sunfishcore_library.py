@@ -10,8 +10,8 @@ import logging
 import pytest
 import requests
 from pytest_httpserver import HTTPServer
-from sunfishcorelib.sunfishcorelib.core import Core
-from sunfishcorelib.sunfishcorelib.exceptions import *
+from sunfish.lib.core import Core
+from sunfish.lib.exceptions import *
 from tests import test_utils, tests_template
 
 class TestSunfishcoreLibrary():

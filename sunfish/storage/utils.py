@@ -4,7 +4,7 @@
 
 import json
 import os
-from sunfishcorelib.sunfishcorelib.exceptions import *
+from sunfish.lib.exceptions import *
 
 _COLLECTION_TEMPLATE = \
 {
