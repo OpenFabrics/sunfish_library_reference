@@ -5,7 +5,7 @@ description = ""
 authors = ["Erika Rosaverde <erikarosaverde@gmail.com>"]
 readme = "README.md"
 packages = [
-	{ include = "sunfishcorelib" }
+	{ include = "sunfish" }
 ]
 
 [tool.poetry.dependencies]

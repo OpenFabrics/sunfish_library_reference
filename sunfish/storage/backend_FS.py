@@ -7,10 +7,10 @@ import logging
 import os
 import shutil
 
-from sunfishcorelib.storage_backend.backend_interface import BackendInterface
-from sunfishcorelib.storage_backend import utils
-from sunfishcorelib.sunfishcorelib.exceptions import *
-from sunfishcorelib.events import event_handler
+from sunfish.storage.backend_interface import BackendInterface
+from sunfish.storage import utils
+from sunfish.lib.exceptions import *
+from sunfish.events import event_handler
 class BackendFS(BackendInterface):
 
     def __init__(self, conf):

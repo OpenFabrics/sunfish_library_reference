@@ -4,8 +4,8 @@
 import os
 
 import requests
-from sunfishcorelib.events.subscription_handler import subscribtions
-from sunfishcorelib.sunfishcorelib.exceptions import *
+from sunfish.events.subscription_handler import subscribtions
+from sunfish.lib.exceptions import *
 
 class EventHandler:
     def __init__(self, core):
