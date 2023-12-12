@@ -1,5 +1,5 @@
 # Sunfishcore Library
-The Sunfishcore library offers an interface that permits to handle Redfish objects via RESTful operations (read, write, put, patch and delete), and it manage the persistency of these objects. The interface has many implementations that manage different kinds of persistency.
+The Sunfish library offers an interface that permits to handle Redfish objects via RESTful operations (read, write, put, patch and delete), and it manage the persistency of these objects. The interface has many implementations that manage different kinds of persistency.
 Current available persistency implementations:
 - File System (FS)
 
@@ -22,9 +22,9 @@ To install the project requirements:
 ```
 pip install -r requirements.txt
 ```
-To install sunfishcorelib you need to use the file .whl:
+To install sunfish you need to use the file .whl:
 ```
-pip3 install dist/sunfishcore-0.1.0-py3-none-any.whl
+pip3 install dist/sunfish-0.1.0-py3-none-any.whl
 
 ```
 
@@ -36,14 +36,19 @@ python3 -m pytest test_sunfishcore_library.py -vvvv
 ```
 
 ## Usage
-To use sunfishcorelib you need to specify the **configuration parameters**, an example could be:
+To use sunfishcorelib you need to specify the **configuration parameters** into the conf.json file, an example could be:
 ```
-conf = {
+{
     "storage_backend": "FS",
-	"redfish_root": "/redfish/v1/",
-	"backend_conf" : {
-		"fs_root": "Resources/Sunfish"
-	}
+    "redfish_root": "/redfish/v1/",
+    "backend_conf" : {
+        "fs_root": "Resources",
+        "subscribers_root": "EventService/Subscriptions"
+    },
+    "handlers": {
+        "subscription_handler": "redfish",
+        "event_handler": "redfish"
+    }
 }
 ```
 
@@ -51,11 +56,13 @@ where:
 - _storage_backend_ specifies the persistency implementation that you want to use
 - _redfish_root_ specifies the Redfish version that must be included in all the requests
 - _backend_conf[fs_root]_ specifies the root directory of Redfish objects' file system
+- _subscription_handler_ specifies the type of handler implementation that you want to use to handle subscriptions
+- _event_handler_ specifies the type of handler implementation that you want to use to handle events
 
-sunfishcorelib should be implemented in an existing Python project. To use it:
+Sunfish should be installed and imported in an existing Python project. To use it:
 - instantiate an object Core(conf)
 - use the methods _get_object_, _create_object_, _replace_object_, _patch_object_, _delete_object_ 
-- these methods will raise the exception defined in `sunfishcorelib.exceptions.py`
+- these methods will raise the exception defined in `sunfish.lib.exceptions.py`
 
 **IMPORTANT:** this Library assumes that the .json object are legal and well-formed according to the Redfish specification.
 

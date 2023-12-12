@@ -4,11 +4,12 @@
 
 import os
 import uuid
+
 from sunfish.lib.object_handler import ObjectHandler
 from sunfish.storage.backend_FS import BackendFS
-from sunfish.lib.exceptions import CollectionNotSupported, InvalidPath
-from sunfish.events.event_handler import EventHandler
-from sunfish.events.subscription_handler import SubscriptionHandler
+from sunfish.lib.exceptions import CollectionNotSupported
+from sunfish.events.redfish_event_handler import RedfishEventHandler
+from sunfish.events.redfish_subscription_handler import RedfishSubscriptionHandler
 
 class Core:
 
@@ -25,9 +26,13 @@ class Core:
             self.storage_backend = BackendFS(self.conf)
         # elif conf['storage_backend'] == '<OTHER STORAGE>':
             # ...
-            
-        self.event_handler = EventHandler(self)
-        self.subscription_handler = SubscriptionHandler(self)
+        
+        if conf['handlers']['subscription_handler'] == 'redfish':
+            self.subscription_handler = RedfishSubscriptionHandler(self)
+        
+        if conf['handlers']['event_handler'] == 'redfish':
+            self.event_handler = RedfishEventHandler(self)
+        
         self.object_handler = ObjectHandler(self)
     
     def get_object(self, path):
@@ -61,13 +66,15 @@ class Core:
         
         ## before to add the ID and to call the methods there should be the json validation
 
-        # generate unique uuid
-        id = str(uuid.uuid4())
-        to_add = {
-            'Id': id,
-            '@odata.id': os.path.join(path,id)
-        }
-        payload.update(to_add)
+        # generate unique uuid if is not present
+        if not '@odata.id' in payload and not 'Id' in payload:
+            id = str(uuid.uuid4())
+            to_add = {
+                'Id': id,
+                '@odata.id': os.path.join(path,id)
+            }
+            payload.update(to_add)
+        
         
         type = self.__check_type(payload)
 
@@ -82,8 +89,8 @@ class Core:
             try:
                 handlerfunc = getattr(ObjectHandler, payload['@odata.type'].split(".")[-1])
                 handlerfunc(self, payload)
-            except Exception as e:
-                return str(e)
+            except AttributeError:
+                pass
         # Call function from backend
         return self.storage_backend.write(payload)
 
@@ -143,7 +150,7 @@ class Core:
         payload = self.storage_backend.read(path)
         type = self.__check_type(payload)
         if type == "EventDestination":
-            self.event_handler.delete_subscription(payload)
+            self.subscription_handler.delete_subscription(payload)
 
         # call function from backend
         return self.storage_backend.remove(path)
@@ -151,7 +158,7 @@ class Core:
     def handle_event(self, payload):
         for event in payload["Events"]:
             try:
-                handlerfunc = getattr(EventHandler, event['MessageId'].split(".")[-1])
+                handlerfunc = getattr(RedfishEventHandler, event['MessageId'].split(".")[-1])
                 handlerfunc(self, event)
             except AttributeError:
                 pass

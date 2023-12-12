@@ -4,7 +4,7 @@
 
 import json
 import os
-
+from sunfish.events.subscription_handler_interface import SubscriptionHandlerInterface
 from sunfish.lib.exceptions import *
 
 # Missing:
@@ -16,7 +16,7 @@ from sunfish.lib.exceptions import *
 
 subscribtions = {
      "RegistryPrefixes": {
-          # "ResourceEvent": {
+          # "RegistryPrefix": {
                # "to_send": [ ],
                # "exclude": [ ]
           # }, ...
@@ -42,7 +42,7 @@ subscribtions = {
      }
 }
 
-class SubscriptionHandler:
+class RedfishSubscriptionHandler(SubscriptionHandlerInterface):
     
      def __init__(self, core):
           """init that sets the conf and calls the load subcriptions method
