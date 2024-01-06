@@ -1,0 +1,12 @@
+{
+    "storage_backend": "FS",
+    "redfish_root": "/redfish/v1/",
+    "backend_conf" : {
+        "fs_root": "Resources",
+        "subscribers_root": "EventService/Subscriptions"
+    },
+    "handlers": {
+        "subscription_handler": "redfish",
+        "event_handler": "redfish"
+    }
+}

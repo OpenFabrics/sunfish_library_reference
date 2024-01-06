@@ -2,6 +2,7 @@
 # This software is available to you under a BSD 3-Clause License. 
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 
+from genericpath import isdir
 from http.server import BaseHTTPRequestHandler
 import json
 import os
@@ -17,33 +18,27 @@ from tests import test_utils, tests_template
 class TestSunfishcoreLibrary():
     @classmethod
     def setup_class(cls):
-        shutil.rmtree(os.path.join(os.getcwd(),'tests', 'Resources', 'EventService', 'Subscriptions'))
-        path = os.path.join(os.getcwd(), 'tests', 'Resources', 'EventService', 'Subscriptions')
-        os.mkdir(path)
-        with open(os.path.join(path,'index.json'), 'w') as f:
-            json.dump(tests_template.setup_subscriptions, f)
-        f.close()
-        
-        cls.conf = {
-            "storage_backend": "FS",
-	        "redfish_root": "/redfish/v1/",
-	        "backend_conf" : {
-		        "fs_root": "tests/Resources",
-                "subscribers_root": "EventService/Subscriptions"
-	        }
-        }
+        path = os.path.join(os.getcwd(), 'tests', 'conf.json')
+        try:
+                json_data = open(path)
+                cls.conf = json.load(json_data)
+        except FileNotFoundError as e:
+            raise ResourceNotFound('conf.json')
+
         cls.core = Core(cls.conf)
-    
+
     # TEST REST
     # Delete
     @pytest.mark.order("last")
     def test_delete(self):
-        id = test_utils.get_id(self.conf["backend_conf"]["fs_root"], 'Systems')
-        system_url = os.path.join(self.conf["redfish_root"], 'Systems', id)
+        #id = test_utils.get_id(self.conf["backend_conf"]["fs_root"], 'Systems')
+        system_url = os.path.join(self.conf["redfish_root"], 'Systems', '1')
         logging.info('Deleting ', system_url)
         self.core.delete_object(system_url)
         assert test_utils.check_delete(system_url) == True
     
+    def test_delete_exception(self):
+        system_url = os.path.join(self.conf["redfish_root"], 'Systems', '-1')
         # raise exception if element doesnt exist
         with pytest.raises(ResourceNotFound):
             self.core.delete_object(system_url)
@@ -54,6 +49,7 @@ class TestSunfishcoreLibrary():
         path = os.path.join(self.conf["redfish_root"], "Systems")
         assert self.core.create_object(path, json_file)
 
+    def test_post_collection_exception(self):
         # Collection excpetion
         path = os.path.join(self.conf["redfish_root"], "Systems")
         with pytest.raises(CollectionNotSupported):
@@ -120,11 +116,28 @@ class TestSunfishcoreLibrary():
     
     def test_event_forwarding(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
-        resp = self.core.handle_event(tests_template.event)
+        resp = self.core.handle_event(tests_template.task_event_cancelled)
+        print('RESP ',resp)
         assert len(resp) == 1
 
     def test_event_forwarding_exception(self, httpserver: HTTPServer):
         path = os.path.join(self.conf['redfish_root'], self.conf["backend_conf"]["subscribers_root"])
         assert self.core.create_object(path, tests_template.wrong_sub)
         resp = self.core.handle_event(tests_template.event)
+        assert len(resp) == 0
+
+    def test_event_forwarding_2(self, httpserver: HTTPServer):
+        httpserver.expect_request("/").respond_with_data("OK")
+        resp = self.core.handle_event(tests_template.event_resource_type_system)
+        print('RESP ',resp)
         assert len(resp) == 1
+
+    # deletes all the subscriptions
+    @pytest.mark.order("last")
+    def test_clean_up(self):
+        path = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_root"], self.conf["backend_conf"]["subscribers_root"])
+        list = os.listdir(path)
+        for sub in list:
+            if os.path.isdir(os.path.join(path, sub)):
+                path_sub = os.path.join(self.conf["redfish_root"], self.conf["backend_conf"]["subscribers_root"], sub)
+                self.core.delete_object(path_sub)

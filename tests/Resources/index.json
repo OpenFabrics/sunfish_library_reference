@@ -1,87 +1,21 @@
 {
-    "@odata.type": "#ServiceRoot.v1_16_0.ServiceRoot",
-    "@odata.id": "/redfish/v1/",
+    "@odata.type": "#ServiceRoot.v1_14_0.ServiceRoot",
     "Id": "RootService",
     "Name": "Root Service",
-    "RedfishVersion": "1.15.0",
-    "ServiceConditions": {
-        "@odata.id": "/redfish/v1/ServiceConditions"
-    },
-    "Systems": {
-        "@odata.id": "/redfish/v1/Systems"
+    "RedfishVersion": "1.14.0",
+    "UUID": "92384634-2938-2342-8820-489239905423",
+    "AggregationService": {
+        "@odata.id": "/redfish/v1/AggregationService"
     },
     "Chassis": {
         "@odata.id": "/redfish/v1/Chassis"
     },
-    "Managers": {
-        "@odata.id": "/redfish/v1/Managers"
+    "Fabrics": {
+        "@odata.id": "/redfish/v1/Fabrics"
     },
-    "UpdateService": {
-        "@odata.id": "/redfish/v1/UpdateService"
+    "Systems": {
+        "@odata.id": "/redfish/v1/Systems"
     },
-    "CompositionService": {
-        "@odata.id": "/redfish/v1/CompositionService"
-    },
-    "Tasks": {
-        "@odata.id": "/redfish/v1/TaskService"
-    },
-    "SessionService": {
-        "@odata.id": "/redfish/v1/SessionService"
-    },
-    "AccountService": {
-        "@odata.id": "/redfish/v1/AccountService"
-    },
-    "EventService": {
-        "@odata.id": "/redfish/v1/EventService"
-    },
-    "Links": {
-        "Sessions": {
-            "@odata.id": "/redfish/v1/SessionService/Sessions"
-        }
-    },
-    "6d023d0d-558c-4e07-b9c8-4051d4d46229": {
-        "@odata.id": "/redfish/v1/6d023d0d-558c-4e07-b9c8-4051d4d46229"
-    },
-    "859c3499-20dc-4723-a5be-119e3dbd7694": {
-        "@odata.id": "/redfish/v1/859c3499-20dc-4723-a5be-119e3dbd7694"
-    },
-    "c4afed54-2ec0-4ccd-8737-58e7afc91dcd": {
-        "@odata.id": "/redfish/v1/c4afed54-2ec0-4ccd-8737-58e7afc91dcd"
-    },
-    "f27d2d35-9f49-4cea-8cfe-2b8e68fefa37": {
-        "@odata.id": "/redfish/v1/f27d2d35-9f49-4cea-8cfe-2b8e68fefa37"
-    },
-    "ad6f75dc-ce83-4507-873d-59939336cf7a": {
-        "@odata.id": "/redfish/v1/ad6f75dc-ce83-4507-873d-59939336cf7a"
-    },
-    "20300e0a-37fe-4506-8ca2-1b5224eae73c": {
-        "@odata.id": "/redfish/v1/20300e0a-37fe-4506-8ca2-1b5224eae73c"
-    },
-    "04c02b93-8074-4349-878a-ed19d83b3d82": {
-        "@odata.id": "/redfish/v1/04c02b93-8074-4349-878a-ed19d83b3d82"
-    },
-    "8f65b23e-a62c-4864-a54f-f621a20d3cbd": {
-        "@odata.id": "/redfish/v1/8f65b23e-a62c-4864-a54f-f621a20d3cbd"
-    },
-    "a76ddfa6-ec91-4b10-91c2-d1a908a77b06": {
-        "@odata.id": "/redfish/v1/a76ddfa6-ec91-4b10-91c2-d1a908a77b06"
-    },
-    "7a6f892c-6d5d-472b-9664-387e0492f54c": {
-        "@odata.id": "/redfish/v1/7a6f892c-6d5d-472b-9664-387e0492f54c"
-    },
-    "cda370d9-ffc8-4ed1-b25c-1ed7334feefd": {
-        "@odata.id": "/redfish/v1/cda370d9-ffc8-4ed1-b25c-1ed7334feefd"
-    },
-    "64df796b-4de1-422f-9a86-db38988fe7cb": {
-        "@odata.id": "/redfish/v1/64df796b-4de1-422f-9a86-db38988fe7cb"
-    },
-    "2ab565c4-35fb-4e65-9f67-3ece59150325": {
-        "@odata.id": "/redfish/v1/2ab565c4-35fb-4e65-9f67-3ece59150325"
-    },
-    "eab881dc-7dfa-407f-96af-7ffdc7a2c6ac": {
-        "@odata.id": "/redfish/v1/eab881dc-7dfa-407f-96af-7ffdc7a2c6ac"
-    },
-    "e75ef424-e5b3-424f-a7a5-41012d3abe81": {
-        "@odata.id": "/redfish/v1/e75ef424-e5b3-424f-a7a5-41012d3abe81"
-    }
+    "@odata.id": "/redfish/v1",
+    "@Redfish.Copyright": "Copyright 2015-2022 SNIA. All rights reserved."
 }

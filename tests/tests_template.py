@@ -14,6 +14,8 @@ setup_subscriptions = {
 
 test_post_system = {
     "@odata.type": "#ComputerSystem.1.00.0.ComputerSystem",
+    "@odata.id": "/redfish/v1/Systems/1",
+    "Id": "1",
     "Boot": {
         "BootSourceOverrideEnabled": "Once",
         "BootSourceOverrideSupported": [
@@ -194,31 +196,54 @@ test_update_exception = {
 
 # SUBSCRIPTIONS
 sub1 = {
-    "@odata.type": "#EventDestination.v1_13_2.EventDestination",
+    "@odata.type": "#EventDestination.EventDestination",
     "Destination": "http://localhost:8080",
     "EventFormatType": "Event",
     "RegistryPrefixes": [
-        "ResourceEvent"
+        "TaskEvent"
     ]
-}
-sub2 = {
-    "@odata.type": "#EventDestination.v1_13_2.EventDestination",
-    "Destination": "http://localhost:8080",
-    "EventFormatType": "Event",
+    ,
     "ExcludeRegistryPrefixes": [
-        "ResourceEvent"
-    ]
-}
-sub3 = {
-    "@odata.type": "#EventDestination.v1_13_2.EventDestination",
-    "Destination": "http://localhost:8080",
-    "EventFormatType": "Event",
-    "RegistryPrefixes": [
-        "ResourceEvent"
+        "Basic"
     ],
     "ExcludeMessageIds": [
-        "ResourceEvent.1.0.ResourceCreated"
+        "TaskEvent.1.0.TaskCancelled"
     ]
+}
+
+sub2 = {
+    "@odata.type": "#EventDestination.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "RegistryPrefixes": [
+        "Basic"
+    ],
+    "MessageIds": [
+        "TaskEvent.1.0.TaskCancelled"
+    ],
+    "ExcludeMessageIds": [
+        "BaseEvent.1.0.AccessDenied"
+    ]
+}
+
+sub3 = {
+    "@odata.type": "#EventDestination.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "RegistryPrefixes": [
+        "Basic"
+    ],
+    "ExcludeRegistryPrefixes": [
+        "ResourceEvent",
+        "TaskEvent"
+    ],
+    "ResourceTypes": [
+        "ComputerSystem"
+    ],
+    "OriginResources": {
+        "@odata.id": "/redfish/v1/Systems/1"
+    },
+    "SubordinateResources": "True"
 }
 
 wrong_sub = {
@@ -239,9 +264,77 @@ event = {
             "EventId": "4593",
             "Severity": "OK",
             "Message": "The resource has been created successfully.",
-            "MessageId": "ResourceEvent.1.0.ResourceCreated",
+            "MessageId": "ResourceEvent.1.0.Prova",
             "MessageArgs": [
             ]
         }
     ]
+}
+
+task_event_cancelled = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "Task Event",
+    "Context": "ContosoWebClient",
+    "Events": [
+        {
+            "EventId": "1234",
+            "Severity": "Warning",
+            "Message": "Work on the task with Id 1234 has been halted prior to completion due to an explicit request.",
+            "MessageId": "TaskEvent.1.0.TaskCancelled",
+            "MessageArgs": [
+                "1234"
+            ]
+        }
+    ]
+}
+
+base_event_access_denied = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "Base Event",
+    "Context": "ContosoWebClient",
+    "Events": [
+        {
+            "EventId": "5678",
+            "Severity": "Critical",
+            "Message": "While attempting to establish a connection to 5678, the service denied access.",
+            "MessageId": "BaseEvent.1.0.AccessDenied",
+            "MessageArgs": [
+                "5678"
+            ]
+        }
+    ]
+}
+
+event_resource_type_system = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "Power event",
+    "Context": "",
+    "Events": [ {
+        "EventType": "Other",
+        "EventId": "0987",
+        "Severity": "Ok",
+        "Message": "A aggregation source of connection method Redfish located at http://127.0.0.1:5001 has been discovered.",
+        "MessageId": "Power.1.0.CircuitPoweredOn",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:5001" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Systems/1"
+        }
+    } ]
+}
+
+event_aggregation_source_discovered = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "AggregationSourceDiscovered",
+    "Context": "",
+    "Events": [ {
+        "EventType": "Other",
+        "EventId": "4594",
+        "Severity": "Ok",
+        "Message": "A aggregation source of connection method Redfish located at http://127.0.0.1:5001 has been discovered.",
+        "MessageId": "Foo.1.0.AggregationSourceDiscovered",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:5001" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/CXL"
+        }
+    } ]
 }

@@ -10,7 +10,7 @@ import shutil
 from sunfish.storage.backend_interface import BackendInterface
 from sunfish.storage import utils
 from sunfish.lib.exceptions import *
-from sunfish.events import event_handler
+
 class BackendFS(BackendInterface):
 
     def __init__(self, conf):
@@ -118,12 +118,11 @@ class BackendFS(BackendInterface):
                 utils.update_collections_parent_json(path=os.path.join(parent_path, "index.json"), type=collection_name, link=self.redfish_root+collection_type)
             else:
                 utils.generate_collection(collection_type)
-        # Not needed because now we generate a unique uuid for each POST
-        # else:
-        #     # checks if there is already a resource with the same id
-        #     index_path = os.path.join(collection_path, "index.json")
-        #     if utils.check_unique_id(index_path, payload['@odata.id']) is False:
-        #         raise AlreadyExists(payload['@odata.id'])
+        else:
+            # checks if there is already a resource with the same id
+            index_path = os.path.join(collection_path, "index.json")
+            if utils.check_unique_id(index_path, payload['@odata.id']) is False:
+                raise AlreadyExists(payload['@odata.id'])
                 
 
         # creates folder of the element and write index.json (assuming that the payload is valid i dont use any kind of template to write index.json)
@@ -221,8 +220,6 @@ class BackendFS(BackendInterface):
 
         return result
 
-#   #   TO FIX: the code doesnt consider the linked resources. If the remove function is called, it removes only the folders but it doesnt update all the linked resources 
-#               --> a link that referes to a deleted resource doesnt work.
     def remove(self, path:str):
         """Deletes the object and updates the linked files of the same collection. Then it scans all the dir tree and deletes the links of the deleted resource.
 

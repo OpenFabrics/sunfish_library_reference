@@ -1,0 +1,14 @@
+{
+    "@odata.type": "#AggregationService.v1_0_1.AggregationService",
+    "Id": "AggregationService",
+    "Name": "Aggregation Service",
+    "Description": "Open Fabric Manager Aggregation Service",
+    "Status": {
+        "State": "Enabled",
+        "Health": "OK"
+    },
+    "ServiceEnabled": true,
+
+    "@odata.id": "/redfish/v1/AggregationService",
+    "@Redfish.Copyright": "Copyright 2023 OpenFabrics Alliance. All rights reserved."
+}
