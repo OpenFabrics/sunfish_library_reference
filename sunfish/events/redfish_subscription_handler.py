@@ -122,7 +122,7 @@ class RedfishSubscriptionHandler(SubscriptionHandlerInterface):
 
           if "OriginResources" in payload:
                for prefix in payload["OriginResources"]:
-                    origin = payload["OriginResources"][prefix]
+                    origin = prefix["@odata.id"]
                     if "SubordinateResources" in payload and payload["SubordinateResources"]:
                         origin = os.path.join(origin, '*')
                     if origin in subscribtions["OriginResources"]:
