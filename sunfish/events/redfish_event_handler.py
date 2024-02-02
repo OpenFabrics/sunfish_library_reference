@@ -25,7 +25,7 @@ class RedfishEventHandler(EventHandlerInterface):
         self.backend = core.storage_backend
 
     def new_event(self, payload):
-        """Compares event's informations with the subsribtions data structure to find the Ids of the subscribers for that event.
+        """Compares event's information with the subsribtions data structure to find the Ids of the subscribers for that event.
         
         Args:
             payload (dict): event received.
