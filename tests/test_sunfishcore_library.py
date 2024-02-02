@@ -89,19 +89,21 @@ class TestSunfishcoreLibrary():
     # Patch
     def test_patch(self):
         id = test_utils.get_id(self.conf["backend_conf"]["fs_root"], 'Systems')
+        object_path = os.path.join(self.conf["redfish_root"], 'Systems', id)
+        object_to_update = self.core.get_object(object_path)
+
         payload = tests_template.test_patch
-        id_properties = {
-            "@odata.id": os.path.join(self.conf["redfish_root"], 'Systems', id),
-            "Id": id
-        }
-        payload.update(id_properties)
-        assert self.core.patch_object(payload) == self.core.get_object(payload['@odata.id'])
-    
+        self.core.patch_object(object_path, payload)
+
+        object_to_update.update(payload)
+
+        assert object_to_update == self.core.get_object(object_path)
+
     # Exception patch element that doesnt exists
     def test_patch_exception(self):
         payload = tests_template.test_update_exception
         with pytest.raises(ResourceNotFound):
-            self.core.patch_object(payload)
+            self.core.patch_object('/redfish/v1/Systems/-1', payload)
 
     # EVENTING and SUBSCRIPTIONS
     def test_subscription(self):

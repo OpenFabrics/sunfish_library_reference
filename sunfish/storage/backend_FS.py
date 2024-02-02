@@ -157,9 +157,11 @@ class BackendFS(BackendInterface):
         except ResourceNotFound as e:
             raise ResourceNotFound(e.resource_id)
     
-    def patch(self, payload:json):
+    def patch(self, path: str, payload:json):
+        object = self.read(path)
+        object.update(payload)
         try:
-            return self._update_object(payload, False)
+            return self._update_object(object, False)
         except ResourceNotFound as e:
             raise ResourceNotFound(e.resource_id)
     
