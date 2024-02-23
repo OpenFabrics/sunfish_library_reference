@@ -163,7 +163,7 @@ class Core:
         for event in payload["Events"]:
             try:
                 handlerfunc = getattr(RedfishEventHandler, event['MessageId'].split(".")[-1])
-                handlerfunc(self, event,context)
+                handlerfunc(self, event, context)
             except AttributeError:
                 pass
         return self.event_handler.new_event(payload)
