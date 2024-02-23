@@ -139,7 +139,7 @@ class RedfishEventHandler(EventHandlerInterface):
         
         return to_forward
     
-    def AggregationSourceDiscovered(self, event,context):
+    def AggregationSourceDiscovered(self, event, context):
         ###
         # Fabric Agents are modelled as AggregationSource objects (RedFish v2023.1 at the time of writing this comment)
         # Registration will happen with the OFMF receiving a and event with MessageId: AggregationSourceDiscovered
@@ -201,13 +201,13 @@ class RedfishEventHandler(EventHandlerInterface):
         if response.status_code != 200:
             raise Exception("Cannot find ConnectionMethod")
         object = response.json()
-        add_aggregation_source_reference(object,aggregation_source)
+        add_aggregation_source_reference(object, aggregation_source)
 
         self.create_object(id, object)
 
         RedfishEventHandler.bfsInspection(self, object, aggregation_source)
 
-        self.patch_object(id,aggregation_source)
+        self.patch_object(id, aggregation_source)
 
     def bfsInspection(self, node, aggregation_source):
         queue = []
@@ -314,11 +314,11 @@ class RedfishEventHandler(EventHandlerInterface):
                 elif self.get_object(file_path) != redfish_obj:
                     warnings.warn('Resource state changed')
             except ResourceNotFound:
-                add_aggregation_source_reference(redfish_obj,aggregation_source)
+                add_aggregation_source_reference(redfish_obj, aggregation_source)
                 self.create_object(file_path, redfish_obj)
 
 
-def add_aggregation_source_reference(redfish_obj,aggregation_source):
+def add_aggregation_source_reference(redfish_obj, aggregation_source):
     if "Oem" not in redfish_obj:
         redfish_obj["Oem"] = {}
     if "Sunfish_RM" not in redfish_obj["Oem"]:
