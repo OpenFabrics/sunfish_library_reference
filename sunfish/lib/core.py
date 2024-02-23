@@ -115,7 +115,7 @@ class Core:
         # Call function from backend
         return self.storage_backend.replace(payload)
     
-    def patch_object(self, path,payload):
+    def patch_object(self, path, payload):
         """Calls the correspondent patch function from the backend implementation.
 
         Args:
@@ -135,7 +135,7 @@ class Core:
             return resp
                     
         # call function from backend
-        return self.storage_backend.patch(path,payload)
+        return self.storage_backend.patch(path, payload)
 
     def delete_object(self, path):
         """Calls the correspondent remove function from the backend implementation. Checks that the path is valid.
