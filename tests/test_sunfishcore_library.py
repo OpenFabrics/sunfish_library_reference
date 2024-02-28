@@ -83,7 +83,7 @@ class TestSunfishcoreLibrary():
     #  Exception put element that doesnt exists
     def test_put_exception(self):
         payload = tests_template.test_update_exception
-        with pytest.raises(ResourceNotFound):
+        with pytest.raises(PropertyNotFound):
             self.core.replace_object(payload)
     
     # Patch

@@ -156,10 +156,14 @@ class Core:
         return self.storage_backend.remove(path)
     
     def handle_event(self, payload):
+        if "Context" in payload:
+            context = payload["Context"]
+        else:
+            context = ""
         for event in payload["Events"]:
             try:
                 handlerfunc = getattr(RedfishEventHandler, event['MessageId'].split(".")[-1])
-                handlerfunc(self, event)
+                handlerfunc(self, event, context)
             except AttributeError:
                 pass
         return self.event_handler.new_event(payload)

@@ -8,32 +8,28 @@ The library requires:
 - Python (version>=3.9)
 - Poetry
 
-## To generate the installation file
-From the directory ```sunfish_library_reference``` execute the following command:
-```
-poetry build #This command will create the .whl file
-
-```
-
 ## Installation
 
-We suggest using a Python virtual environment. 
+We suggest using a Python virtual environment.
 To install the project requirements:
 ```
 pip install -r requirements.txt
 ```
-To install sunfish you need to use the file .whl:
-```
-pip3 install dist/sunfish-0.1.0-py3-none-any.whl
 
+## To generate the installation file
+From the directory ```sunfish_library_reference``` execute the following command:
 ```
+make build
+```
+
 
 ## Tests
 To test this Library you need ```pytest``` to be installed.
 To run the tests run the command 
 ```
-python3 -m pytest test_sunfishcore_library.py -vvvv
+make test
 ```
+
 
 ## Usage
 To use sunfishcorelib you need to specify the **configuration parameters** into the conf.json file, an example could be:

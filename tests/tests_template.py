@@ -177,13 +177,6 @@ test_patch = {
 
 test_update_exception = {
     "@odata.id": "/redfish/v1/Systems/-1",
-    "@odata.type": "#ComputerSystem.1.00.0.ComputerSystem",
-    "Id": "1234",
-    "Name": "Compute Node 1234",
-    "SystemType": "Physical",
-    "Manufacturer": "Manufacturer Name",
-    "Model": "Model Name",
-    "SKU": "",
     "Memory": {
         "TotalSystemMemoryGB": 12,
         "Status": {
@@ -240,9 +233,9 @@ sub3 = {
     "ResourceTypes": [
         "ComputerSystem"
     ],
-    "OriginResources": {
+    "OriginResources": [{
         "@odata.id": "/redfish/v1/Systems/1"
-    },
+    }],
     "SubordinateResources": "True"
 }
 

@@ -25,7 +25,7 @@ class RedfishEventHandler(EventHandlerInterface):
         self.backend = core.storage_backend
 
     def new_event(self, payload):
-        """Compares event's informations with the subsribtions data structure to find the Ids of the subscribers for that event.
+        """Compares event's information with the subsribtions data structure to find the Ids of the subscribers for that event.
         
         Args:
             payload (dict): event received.
@@ -139,7 +139,7 @@ class RedfishEventHandler(EventHandlerInterface):
         
         return to_forward
     
-    def AggregationSourceDiscovered(self, event):
+    def AggregationSourceDiscovered(self, event, context):
         ###
         # Fabric Agents are modelled as AggregationSource objects (RedFish v2023.1 at the time of writing this comment)
         # Registration will happen with the OFMF receiving a and event with MessageId: AggregationSourceDiscovered
@@ -179,56 +179,35 @@ class RedfishEventHandler(EventHandlerInterface):
             }
         }
 
-        try:
-            resp_post = self.create_object(os.path.join(self.conf["redfish_root"], "AggregationService/AggregationSources"), connection_method_template)
-        except Exception:
-            raise Exception()
-        
-        # Update Name and ResourcesAccessed
-        path = hostname + os.path.join(self.conf["redfish_root"], "Fabrics")
-        response = requests.get(path)
-        if response.status_code != 200:
-            raise Exception("Cannot find Fabrics")
-        response = response.json()
+        resp_post = self.create_object(os.path.join(self.conf["redfish_root"], "AggregationService/AggregationSources"), connection_method_template)
 
-        update_template = {
-            "@odata.type": "#AggregationSource.v1_2_"+resp_post["Id"]+".AggregationSource",
-            "@odata.id": resp_post["@odata.id"],
-            "Name": "Agent "+resp_post["Id"],
-            "Links": {
-                "ConnectionMethod": {
-                    "@odata.id": connectionMethodId
-                },
-                "ResourcesAccessed": [
-                    member['@odata.id'] for member in response['Members']
-                ]
-            }
-        }
+        aggregation_source_id = resp_post['@odata.id']
+        agent_subscription_context = {"Context": aggregation_source_id.split('/')[-1]}
 
-        try:
-            resp_patch = self.patch_object(update_template)
-        except Exception:
-            raise Exception
-        
+        resp_patch = requests.patch(f"{hostname}/redfish/v1/EventService/Subscriptions/SunfishServer",
+                                    json=agent_subscription_context)
+
         return resp_patch
     
-    def ResourceCreated(self, event):
+    def ResourceCreated(self, event, context):
         logging.info("New resource created")
 
         id = event['OriginOfCondition']['@odata.id'] # /redfish/v1/Fabrics/CXL
-        aggregation_source = RedfishEventHandler.get_aggregation_source(self, id)
+        aggregation_source = self.get_object(
+            os.path.join(self.conf["redfish_root"], "AggregationService", "AggregationSources", context))
         hostname = aggregation_source["HostName"]
 
         response = requests.get(f"{hostname}/{id}")
         if response.status_code != 200:
             raise Exception("Cannot find ConnectionMethod")
-        response = response.json()
+        object = response.json()
+        add_aggregation_source_reference(object, aggregation_source)
 
-        self.create_object(id, response)
+        self.create_object(id, object)
 
-        RedfishEventHandler.bfsInspection(self, response, aggregation_source)
+        RedfishEventHandler.bfsInspection(self, object, aggregation_source)
 
-        self.patch_object(aggregation_source)
+        self.patch_object(id, aggregation_source)
 
     def bfsInspection(self, node, aggregation_source):
         queue = []
@@ -335,14 +314,18 @@ class RedfishEventHandler(EventHandlerInterface):
                 elif self.get_object(file_path) != redfish_obj:
                     warnings.warn('Resource state changed')
             except ResourceNotFound:
-                oem = {
-                    "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
-                    "ManagingAgent": {
-                        "@odata.id": aggregation_source["@odata.id"]
-                    }
-                }
-                if "Oem" not in redfish_obj:
-                    redfish_obj["Oem"] = {}
-                if "Sunfish_RM" not in redfish_obj["Oem"]:
-                    redfish_obj["Oem"]["Sunfish_RM"] = oem
+                add_aggregation_source_reference(redfish_obj, aggregation_source)
                 self.create_object(file_path, redfish_obj)
+
+
+def add_aggregation_source_reference(redfish_obj, aggregation_source):
+    if "Oem" not in redfish_obj:
+        redfish_obj["Oem"] = {}
+    if "Sunfish_RM" not in redfish_obj["Oem"]:
+        oem = {
+            "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
+            "ManagingAgent": {
+                "@odata.id": aggregation_source["@odata.id"]
+            }
+        }
+        redfish_obj["Oem"]["Sunfish_RM"] = oem
