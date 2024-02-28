@@ -11,7 +11,96 @@ from sunfish.events.event_handler_interface import EventHandlerInterface
 from sunfish.events.redfish_subscription_handler import subscribtions
 from sunfish.lib.exceptions import *
 
+logger = logging.getLogger("RedfishEventHandler")
+
+
+class RedfishEventHandlersTable:
+    @classmethod
+    def AggregationSourceDiscovered(cls, event_handler: EventHandlerInterface, event: dict, context: str):
+        ###
+        # Fabric Agents are modelled as AggregationSource objects (RedFish v2023.1 at the time of writing this comment)
+        # Registration will happen with the OFMF receiving a and event with MessageId: AggregationSourceDiscovered
+        # The arguments of the event message are:
+        #   - Arg1: "Redfish"
+        #   - Arg2: "agent_ip:port"
+        # I am also assuming that the agent name to be used is contained in the OriginOfCondifiton field of the event as in the below example:
+        # {
+        #    "OriginOfCondition: [
+        #           "@odata.id" : "/redfish/v1/AggregationService/AggregationSource/AgentName"
+        #    ]"
+        # }
+        logger.info("AggregationSourceDiscovered method called")
+
+        connectionMethodId = event['OriginOfCondition']['@odata.id']
+        hostname = event['MessageArgs'][1]  # Agent address
+
+        response = requests.get(f"{hostname}/{connectionMethodId}")
+        if response.status_code != 200:
+            raise Exception("Cannot find ConnectionMethod")
+        response = response.json()
+
+        ### Save agent registration
+        connection_method_name = connectionMethodId.split('/')[-1]
+        connection_method_name = connectionMethodId[:-len(connection_method_name)]
+        event_handler.core.create_object(connection_method_name, response)
+
+        connection_method_template = {
+            "@odata.type": "#AggregationSource.v1_2_.AggregationSource",
+            "HostName": hostname,
+            "Links": {
+                "ConnectionMethod": {
+                    "@odata.id": connectionMethodId
+                },
+                "ResourcesAccessed": []
+            }
+        }
+
+        try:
+            resp_post = event_handler.core.create_object(
+                os.path.join(event_handler.core.conf["redfish_root"], "AggregationService/AggregationSources"),
+                connection_method_template)
+        except Exception:
+            raise Exception()
+
+        aggregation_source_id = resp_post['@odata.id']
+        agent_subscription_context = {"Context": aggregation_source_id.split('/')[-1]}
+
+        resp_patch = requests.patch(f"{hostname}/redfish/v1/EventService/Subscriptions/SunfishServer",
+                                    json=agent_subscription_context)
+
+        return resp_patch
+
+    @classmethod
+    def ResourceCreated(cls, event_handler: EventHandlerInterface, event: dict, context: str):
+        logger.info("New resource created")
+
+        id = event['OriginOfCondition']['@odata.id']  # /redfish/v1/Fabrics/CXL
+        aggregation_source = event_handler.core.storage_backend.read(
+            os.path.join(event_handler.core.conf["redfish_root"],
+            "AggregationService", "AggregationSources", context)
+        )
+        hostname = aggregation_source["HostName"]
+
+        response = requests.get(f"{hostname}/{id}")
+        if response.status_code != 200:
+            raise Exception("Cannot find ConnectionMethod")
+        response = response.json()
+
+        add_aggregation_source_reference(response, aggregation_source)
+
+        event_handler.core.create_object(id, response)
+
+        RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
+
+        event_handler.core.storage_backend.patch(id, aggregation_source)
+
+
 class RedfishEventHandler(EventHandlerInterface):
+    dispatch_table = {
+        "AggregationSourceDiscovered": RedfishEventHandlersTable.AggregationSourceDiscovered,
+        "ResourceCreated": RedfishEventHandlersTable.ResourceCreated
+    }
+
     def __init__(self, core):
         """init that sets the conf and calls the load subcriptions method
 
@@ -23,6 +112,12 @@ class RedfishEventHandler(EventHandlerInterface):
         self.fs_root = core.conf["backend_conf"]["fs_root"]
         self.subscribers_root = core.conf["backend_conf"]["subscribers_root"]
         self.backend = core.storage_backend
+    @classmethod
+    def dispatch(cls, message_id: str, event_handler: EventHandlerInterface, event: dict):
+        if message_id in cls.dispatch_table:
+            return cls.dispatch_table[message_id](event_handler, event)
+        else:
+            logger.debug(f"Message id '{message_id}' does not have a custom handler")
 
     def new_event(self, payload):
         """Compares event's information with the subsribtions data structure to find the Ids of the subscribers for that event.
@@ -138,76 +233,6 @@ class RedfishEventHandler(EventHandlerInterface):
                             to_forward.append(id)
         
         return to_forward
-    
-    def AggregationSourceDiscovered(self, event, context):
-        ###
-        # Fabric Agents are modelled as AggregationSource objects (RedFish v2023.1 at the time of writing this comment)
-        # Registration will happen with the OFMF receiving a and event with MessageId: AggregationSourceDiscovered
-        # The arguments of the event message are:
-        #   - Arg1: "Redfish"
-        #   - Arg2: "agent_ip:port"
-        # I am also assuming that the agent name to be used is contained in the OriginOfCondifiton field of the event as in the below example:
-        # {
-        #    "OriginOfCondition: [
-        #           "@odata.id" : "/redfish/v1/AggregationService/AggregationSource/AgentName"
-        #    ]"
-        # }
-        logging.info("AggregationSourceDiscovered method called")
-        
-        connectionMethodId = event['OriginOfCondition']['@odata.id'] 
-        hostname = event['MessageArgs'][1] # Agent address
-
-        response = requests.get(f"{hostname}/{connectionMethodId}")
-        if response.status_code != 200:
-            raise Exception("Cannot find ConnectionMethod")
-        response = response.json()
-
-        ### Save agent registration
-        connection_method_name = connectionMethodId.split('/')[-1]
-        connection_method_name = connectionMethodId[:-len(connection_method_name)]
-        self.create_object(connection_method_name, response)
-
-        connection_method_template = {
-            "@Redfish.Copyright": "Copyright 2014-2021 SNIA. All rights reserved.",
-            "@odata.type": "#AggregationSource.v1_2_.AggregationSource",
-            "HostName": hostname,
-            "Links": {
-                "ConnectionMethod": {
-                    "@odata.id": connectionMethodId
-                },
-                "ResourcesAccessed": [ ]
-            }
-        }
-
-        resp_post = self.create_object(os.path.join(self.conf["redfish_root"], "AggregationService/AggregationSources"), connection_method_template)
-
-        aggregation_source_id = resp_post['@odata.id']
-        agent_subscription_context = {"Context": aggregation_source_id.split('/')[-1]}
-
-        resp_patch = requests.patch(f"{hostname}/redfish/v1/EventService/Subscriptions/SunfishServer",
-                                    json=agent_subscription_context)
-
-        return resp_patch
-    
-    def ResourceCreated(self, event, context):
-        logging.info("New resource created")
-
-        id = event['OriginOfCondition']['@odata.id'] # /redfish/v1/Fabrics/CXL
-        aggregation_source = self.get_object(
-            os.path.join(self.conf["redfish_root"], "AggregationService", "AggregationSources", context))
-        hostname = aggregation_source["HostName"]
-
-        response = requests.get(f"{hostname}/{id}")
-        if response.status_code != 200:
-            raise Exception("Cannot find ConnectionMethod")
-        object = response.json()
-        add_aggregation_source_reference(object, aggregation_source)
-
-        self.create_object(id, object)
-
-        RedfishEventHandler.bfsInspection(self, object, aggregation_source)
-
-        self.patch_object(id, aggregation_source)
 
     def bfsInspection(self, node, aggregation_source):
         queue = []
@@ -234,7 +259,7 @@ class RedfishEventHandler(EventHandlerInterface):
             redfish_obj = RedfishEventHandler.fetchResourceAndTree(self, id, aggregation_source, visited, queue, fetched)
 
             if redfish_obj is None or type(redfish_obj) != dict:
-                logging.info(f"Resource - {id} - not available")
+                logger.info(f"Resource - {id} - not available")
                 continue
 
             for key, val in redfish_obj.items():
@@ -274,10 +299,10 @@ class RedfishEventHandler(EventHandlerInterface):
         need_parent_prefetch = False
         for node_position in range(4, len(path_nodes) - 1):
             redfish_path = f'/redfish/v1/{"/".join(path_nodes[3:node_position + 1])}'
-            logging.info(f"Checking redfish path: {redfish_path}")
+            logger.info(f"Checking redfish path: {redfish_path}")
             if redfish_path not in visited:
                 need_parent_prefetch = True
-                logging.info(f"Inspect redfish path: {redfish_path}")
+                logger.info(f"Inspect redfish path: {redfish_path}")
                 queue.append(redfish_path)
                 visited.append(redfish_path)
         if need_parent_prefetch:  # requeue
@@ -289,7 +314,7 @@ class RedfishEventHandler(EventHandlerInterface):
     
     def fetchResource(self, obj_id, aggregation_source):
         resource_endpoint = aggregation_source["HostName"] + obj_id
-        logging.info(f"fetch: {resource_endpoint}")
+        logger.info(f"fetch: {resource_endpoint}")
         response = requests.get(resource_endpoint)
 
         if response.status_code == 200:
@@ -316,7 +341,8 @@ class RedfishEventHandler(EventHandlerInterface):
             except ResourceNotFound:
                 add_aggregation_source_reference(redfish_obj, aggregation_source)
                 self.create_object(file_path, redfish_obj)
-
+        else:
+            logger.debug("This is a collection")
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
     if "Oem" not in redfish_obj:
