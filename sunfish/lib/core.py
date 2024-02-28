@@ -7,7 +7,7 @@ import uuid
 
 from sunfish.lib.object_handler import ObjectHandler
 from sunfish.storage.backend_FS import BackendFS
-from sunfish.lib.exceptions import CollectionNotSupported
+from sunfish.lib.exceptions import CollectionNotSupported,PropertyNotFound
 from sunfish.events.redfish_event_handler import RedfishEventHandler
 from sunfish.events.redfish_subscription_handler import RedfishSubscriptionHandler
 
@@ -75,7 +75,7 @@ class Core:
             }
             payload.update(to_add)
         
-        
+
         type = self.__check_type(payload)
 
         if "Collection" in type:
@@ -115,7 +115,7 @@ class Core:
         # Call function from backend
         return self.storage_backend.replace(payload)
     
-    def patch_object(self, payload):
+    def patch_object(self, path, payload):
         """Calls the correspondent patch function from the backend implementation.
 
         Args:
@@ -124,8 +124,8 @@ class Core:
         Returns:
             str|exception: return the updated resource or an exception in case of fault.
         """
-        ## controlla odata.type
-        type = self.__check_type(payload)
+        obj = self.get_object(path)
+        type =obj["@odata.type"]
         if "Collection" in type:
             raise CollectionNotSupported()
         elif type == "EventDestination":
@@ -135,7 +135,7 @@ class Core:
             return resp
                     
         # call function from backend
-        return self.storage_backend.patch(payload)
+        return self.storage_backend.patch(path, payload)
 
     def delete_object(self, path):
         """Calls the correspondent remove function from the backend implementation. Checks that the path is valid.
@@ -166,6 +166,8 @@ class Core:
             
     def __check_type(self, payload):
         ## controlla odata.type
+        if "@odata.type" not in payload:
+            raise PropertyNotFound("@odata.type")
         type = payload["@odata.type"]
         type = type.split('.')[0]
         return type.replace("#", "")

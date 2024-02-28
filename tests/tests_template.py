@@ -170,7 +170,7 @@ test_put = {
 test_patch = {
     "@odata.type": "#ComputerSystem.1.0.0.ComputerSystem",
     "Status": {
-        "State": "Disabled",
+        "State": "Enabled",
         "Health": "OK"
     }
 }

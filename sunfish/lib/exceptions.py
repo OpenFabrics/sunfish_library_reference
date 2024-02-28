@@ -17,6 +17,23 @@ class ResourceNotFound(BaseException):
         self.message = message
         super().__init__(self.message)
 
+
+class PropertyNotFound(BaseException):
+    """
+        Exception raised when the resource is not found.
+
+        Attributes:
+        attribute_name -- name of the attribute not found
+        message -- explanation of the error
++    """
+
+    def __init__(self, attribute_name):
+        self.attribute_name = attribute_name
+        message = "Attribute " + attribute_name + "not found."
+        self.message = message
+        super().__init__(self.message)
+
+
 class CollectionNotSupported(BaseException):
     """
         Exception raised when the payload is not valid
