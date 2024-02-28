@@ -87,7 +87,7 @@ class Core:
             }
             payload.update(to_add)
 
-        object_type = self._check_type(payload)
+        object_type = self._get_type(payload)
         # we assume no changes can be done on collections
         if "Collection" in object_type:
             raise CollectionNotSupported()
@@ -114,7 +114,7 @@ class Core:
         # 4. persist change in Sunfish tree
         return self.storage_backend.write(payload_to_write)
 
-    def replace_object(self, payload: dict):
+    def replace_object(self, path: str, payload: dict):
         """Calls the correspondent replace function from the backend implementation.
 
         Args:
@@ -123,11 +123,10 @@ class Core:
         Returns:
             str|exception: return the replaced resource or an exception in case of fault.
         """
-        object_type = self._check_type(payload)
+        object_type = self._get_type(payload, path=path)
         # we assume no changes can be done on collections
         if "Collection" in object_type:
             raise CollectionNotSupported()
-        path = payload["@odata.id"]
         try:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
@@ -155,7 +154,7 @@ class Core:
         """
         # we assume no changes can be done on collections
         obj = self.storage_backend.read(path)
-        object_type = self._check_type(obj)
+        object_type = self._get_type(obj, path=path)
         if "Collection" in object_type:
             raise CollectionNotSupported()
         try:
@@ -184,8 +183,7 @@ class Core:
         Returns:
             str|exception: return confirmation string or an exception in case of fault.
         """
-        payload = self.storage_backend.read(path)
-        object_type = self._check_type(payload)
+        object_type = self._get_type({}, path=path)
         # we assume no changes can be done on collections
         if "Collection" in object_type:
             raise CollectionNotSupported()
@@ -220,10 +218,17 @@ class Core:
             self.event_handler.dispatch(message_id, self.event_handler, event, context)
         return self.event_handler.new_event(payload)
 
-    def _check_type(self, payload: dict):
+    def _get_type(self, payload: dict, path: str = None):
         # controlla odata.type
-        object_type = payload["@odata.type"].split('.')[0]
-        return object_type.replace("#","")
+        if "@odata.type" in payload:
+            object_type = payload["@odata.type"].split('.')[0].replace("#", "")
+        elif path is not None:
+            obj = self.storage_backend.read(path)
+            object_type = obj["@odata.type"].split('.')[0].replace("#", "")
+        else:
+            raise PropertyNotFound("@odata.type")
+
+        return object_type
 
     def _forward_to_agent(self, request_type: SunfishRequestType, path: string, payload: dict = None) -> Optional[dict]:
         agent_response = None

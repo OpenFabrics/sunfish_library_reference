@@ -175,6 +175,18 @@ test_patch = {
     }
 }
 
+test_put_exception = {
+    "@odata.id": "/redfish/v1/Systems/1",
+    "Memory": {
+        "TotalSystemMemoryGB": 12,
+        "Status": {
+            "State": "Disabled",
+            "Health": "OK",
+            "HealthRollUp": "OK"
+        }
+    }
+}
+
 test_update_exception = {
     "@odata.id": "/redfish/v1/Systems/-1",
     "Memory": {

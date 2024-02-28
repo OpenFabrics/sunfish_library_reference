@@ -72,19 +72,20 @@ class TestSunfishcoreLibrary():
         # pytest.set_trace()
         id = test_utils.get_id(self.conf["backend_conf"]["fs_root"], 'Systems')
         payload = tests_template.test_put
+        path = "/redfish/v1/Systems/1"
         id_properties = {
             "@odata.id": os.path.join(self.conf["redfish_root"], 'Systems', id),
             "Id": id
         }
         payload.update(id_properties)
-        self.core.replace_object(payload)
-        assert self.core.replace_object(payload) == payload
+
+        assert self.core.replace_object(path, payload) == payload
 
     #  Exception put element that doesnt exists
     def test_put_exception(self):
-        payload = tests_template.test_update_exception
+        payload = tests_template.test_put_exception
         with pytest.raises(PropertyNotFound):
-            self.core.replace_object(payload)
+            self.core.replace_object(None, payload)
     
     # Patch
     def test_patch(self):

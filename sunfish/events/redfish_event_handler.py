@@ -113,9 +113,9 @@ class RedfishEventHandler(EventHandlerInterface):
         self.subscribers_root = core.conf["backend_conf"]["subscribers_root"]
         self.backend = core.storage_backend
     @classmethod
-    def dispatch(cls, message_id: str, event_handler: EventHandlerInterface, event: dict):
+    def dispatch(cls, message_id: str, event_handler: EventHandlerInterface, event: dict, context: str):
         if message_id in cls.dispatch_table:
-            return cls.dispatch_table[message_id](event_handler, event)
+            return cls.dispatch_table[message_id](event_handler, event, context)
         else:
             logger.debug(f"Message id '{message_id}' does not have a custom handler")
 
