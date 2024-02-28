@@ -3,7 +3,7 @@
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 
 from genericpath import isdir
-from http.server import BaseHTTPRequestHandler
+# from http.server import BaseHTTPRequestHandler
 import json
 import os
 import shutil
@@ -119,7 +119,6 @@ class TestSunfishcoreLibrary():
     def test_event_forwarding(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
         resp = self.core.handle_event(tests_template.task_event_cancelled)
-        print('RESP ',resp)
         assert len(resp) == 1
 
     def test_event_forwarding_exception(self, httpserver: HTTPServer):
@@ -133,6 +132,32 @@ class TestSunfishcoreLibrary():
         resp = self.core.handle_event(tests_template.event_resource_type_system)
         print('RESP ',resp)
         assert len(resp) == 1
+
+    def test_agent_create_forwarding(self, httpserver: HTTPServer):
+        aggr_source_path = os.path.join(self.conf['redfish_root'], "AggregationService/AggregationSources")
+        fabrics_path = os.path.join(self.conf['redfish_root'], "Fabrics")
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/CXL/Connections")
+        httpserver.expect_request(connection_path, method="POST").respond_with_json(tests_template.test_connection_cxl_fabric)
+
+        resp = self.core.storage_backend.write(tests_template.aggregation_source)
+        resp = self.core.storage_backend.write(tests_template.test_fabric)
+        resp = self.core.create_object(connection_path, tests_template.test_connection_cxl_fabric)
+
+        assert resp == tests_template.test_response_connection_cxl_fabric
+
+    def test_agent_forwarding_exception(self, httpserver: HTTPServer):
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/CXL/Connections/12")
+
+        with pytest.raises(AgentForwardingFailure):
+            resp = self.core.delete_object(connection_path)
+
+    def test_agent_delete_forwarding(self, httpserver: HTTPServer):
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/CXL/Connections/12")
+        httpserver.expect_request(connection_path, method="delete").respond_with_data("OK")
+
+        resp = self.core.delete_object(connection_path)
+
+        assert resp == f"Object {connection_path} deleted"
 
     # deletes all the subscriptions
     @pytest.mark.order("last")
