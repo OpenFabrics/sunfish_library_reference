@@ -215,7 +215,11 @@ class Core:
         for event in payload["Events"]:
             logger.debug(f"Handling event {event['MessageId']}")
             message_id = event['MessageId'].split(".")[-1]
-            self.event_handler.dispatch(message_id, self.event_handler, event, context)
+            try:
+                self.event_handler.dispatch(message_id, self.event_handler, event, context)
+            except PropertyNotFound as e:
+                logger.warning(repr(e))
+                raise e
         return self.event_handler.new_event(payload)
 
     def _get_type(self, payload: dict, path: str = None):

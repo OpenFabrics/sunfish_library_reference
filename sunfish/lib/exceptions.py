@@ -29,7 +29,7 @@ class PropertyNotFound(BaseException):
 
     def __init__(self, attribute_name):
         self.attribute_name = attribute_name
-        message = "Attribute " + attribute_name + "not found."
+        message = f"Attribute not found: {attribute_name}."
         self.message = message
         super().__init__(self.message)
 

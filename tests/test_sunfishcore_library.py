@@ -20,8 +20,8 @@ class TestSunfishcoreLibrary():
     def setup_class(cls):
         path = os.path.join(os.getcwd(), 'tests', 'conf.json')
         try:
-                json_data = open(path)
-                cls.conf = json.load(json_data)
+            json_data = open(path)
+            cls.conf = json.load(json_data)
         except FileNotFoundError as e:
             raise ResourceNotFound('conf.json')
 
@@ -31,12 +31,12 @@ class TestSunfishcoreLibrary():
     # Delete
     @pytest.mark.order("last")
     def test_delete(self):
-        #id = test_utils.get_id(self.conf["backend_conf"]["fs_root"], 'Systems')
+        # id = test_utils.get_id(self.conf["backend_conf"]["fs_root"], 'Systems')
         system_url = os.path.join(self.conf["redfish_root"], 'Systems', '1')
         logging.info('Deleting ', system_url)
         self.core.delete_object(system_url)
         assert test_utils.check_delete(system_url) == True
-    
+
     def test_delete_exception(self):
         system_url = os.path.join(self.conf["redfish_root"], 'Systems', '-1')
         # raise exception if element doesnt exist
@@ -60,7 +60,7 @@ class TestSunfishcoreLibrary():
         id = test_utils.get_id(self.conf["backend_conf"]["fs_root"], 'Systems')
         system_url = os.path.join(self.conf["redfish_root"], 'Systems', id)
         assert self.core.get_object(system_url)
-    
+
     # Exception get element that doesnt exists
     def test_get_exception(self):
         system_url = os.path.join(self.conf["redfish_root"], 'Systems', '-1')
@@ -86,7 +86,7 @@ class TestSunfishcoreLibrary():
         payload = tests_template.test_put_exception
         with pytest.raises(PropertyNotFound):
             self.core.replace_object(None, payload)
-    
+
     # Patch
     def test_patch(self):
         id = test_utils.get_id(self.conf["backend_conf"]["fs_root"], 'Systems')
@@ -116,7 +116,7 @@ class TestSunfishcoreLibrary():
     @pytest.fixture(scope="session")
     def httpserver_listen_address(self):
         return ("localhost", 8080)
-    
+
     def test_event_forwarding(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
         resp = self.core.handle_event(tests_template.task_event_cancelled)
@@ -131,14 +131,19 @@ class TestSunfishcoreLibrary():
     def test_event_forwarding_2(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
         resp = self.core.handle_event(tests_template.event_resource_type_system)
-        print('RESP ',resp)
+        print('RESP ', resp)
         assert len(resp) == 1
+
+    def test_resource_created_event_no_context_exception(self):
+        with pytest.raises(PropertyNotFound):
+            resp = self.core.handle_event(tests_template.resource_event_no_context)
 
     def test_agent_create_forwarding(self, httpserver: HTTPServer):
         aggr_source_path = os.path.join(self.conf['redfish_root'], "AggregationService/AggregationSources")
         fabrics_path = os.path.join(self.conf['redfish_root'], "Fabrics")
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/CXL/Connections")
-        httpserver.expect_request(connection_path, method="POST").respond_with_json(tests_template.test_connection_cxl_fabric)
+        httpserver.expect_request(connection_path, method="POST").respond_with_json(
+            tests_template.test_connection_cxl_fabric)
 
         resp = self.core.storage_backend.write(tests_template.aggregation_source)
         resp = self.core.storage_backend.write(tests_template.test_fabric)
@@ -163,7 +168,8 @@ class TestSunfishcoreLibrary():
     # deletes all the subscriptions
     @pytest.mark.order("last")
     def test_clean_up(self):
-        path = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_root"], self.conf["backend_conf"]["subscribers_root"])
+        path = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_root"],
+                            self.conf["backend_conf"]["subscribers_root"])
         list = os.listdir(path)
         for sub in list:
             if os.path.isdir(os.path.join(path, sub)):

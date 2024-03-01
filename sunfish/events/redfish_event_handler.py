@@ -72,6 +72,9 @@ class RedfishEventHandlersTable:
 
     @classmethod
     def ResourceCreated(cls, event_handler: EventHandlerInterface, event: dict, context: str):
+        if context == "":
+            raise PropertyNotFound("Missing agent context in ResourceCreated event")
+
         logger.info("New resource created")
 
         id = event['OriginOfCondition']['@odata.id']  # /redfish/v1/Fabrics/CXL

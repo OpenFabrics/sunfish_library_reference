@@ -471,5 +471,22 @@ test_response_connection_cxl_fabric = {
             }
         }
     }
+}
 
+resource_event_no_context = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Id": "2",
+    "Name": "Fabric Created",
+    "Context": "",
+    "Events": [{
+        "EventType": "Other",
+        "EventId": "4595",
+        "Severity": "OK",
+        "Message": "New Resource Created ",
+        "MessageId": "ResourceEvent.1.0.ResourceCreated",
+        "MessageArgs": [],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/CXL"
+        }
+    }]
 }
