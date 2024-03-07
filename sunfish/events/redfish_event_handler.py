@@ -1,6 +1,7 @@
 # Copyright IBM Corp. 2023
 # This software is available to you under a BSD 3-Clause License. 
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
+import json
 import logging
 import os
 from uuid import uuid4
@@ -331,6 +332,8 @@ class RedfishEventHandler(EventHandlerInterface):
     def createInspectedObject(self,redfish_obj, aggregation_source):
         if '@odata.id' in redfish_obj:
             obj_path = os.path.relpath(redfish_obj['@odata.id'], self.conf['redfish_root'])
+        else:
+            raise PropertyNotFound(f"missing @odata.id in \n {json.dumps(redfish_obj, indent=2)}")
 
         file_path = os.path.join(self.conf['redfish_root'], obj_path)
         #file_path = create_path(constants.PATHS['Root'], obj_path)
