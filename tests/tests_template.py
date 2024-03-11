@@ -175,6 +175,18 @@ test_patch = {
     }
 }
 
+test_put_exception = {
+    "@odata.id": "/redfish/v1/Systems/1",
+    "Memory": {
+        "TotalSystemMemoryGB": 12,
+        "Status": {
+            "State": "Disabled",
+            "Health": "OK",
+            "HealthRollUp": "OK"
+        }
+    }
+}
+
 test_update_exception = {
     "@odata.id": "/redfish/v1/Systems/-1",
     "Memory": {
@@ -330,4 +342,151 @@ event_aggregation_source_discovered = {
             "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/CXL"
         }
     } ]
+}
+
+aggregation_source = {
+    "@Redfish.Copyright": "Copyright 2014-2021 SNIA. All rights reserved.",
+    "@odata.id": "/redfish/v1/AggregationService/AggregationSources/afd9e24c-20d1-479e-be24-4ad6a62f7197",
+    "@odata.type": "#AggregationSource.v1_2_afd9e24c-20d1-479e-be24-4ad6a62f7197.AggregationSource",
+    "HostName": "http://localhost:8080",
+    "Id": "afd9e24c-20d1-479e-be24-4ad6a62f7197",
+    "Links": {
+        "ConnectionMethod": {
+            "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/CXL"
+        },
+        "ResourcesAccessed": [
+        ]
+    },
+    "Name": "Agent afd9e24c-20d1-479e-be24-4ad6a62f7197"
+}
+
+test_fabric = {
+    "@odata.id": "/redfish/v1/Fabrics/CXL",
+    "@odata.type": "#Fabric.v1_2_2.Fabric",
+    "Connections": {
+        "@odata.id": "/redfish/v1/Fabrics/CXL/Connections"
+    },
+    "Description": "CXL Fabric",
+    "Endpoints": {
+        "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints"
+    },
+    "FabricType": "CXL",
+    "Id": "CXL",
+    "Name": "CXL Fabric",
+    "Oem": {
+        "Sunfish_RM": {
+            "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
+            "ManagingAgent": {
+                "@odata.id": "/redfish/v1/AggregationService/AggregationSources/afd9e24c-20d1-479e-be24-4ad6a62f7197"
+            }
+        }
+    },
+    "Status": {
+        "Health": "OK",
+        "State": "Enabled"
+    },
+    "Switches": {
+        "@odata.id": "/redfish/v1/Fabrics/CXL/Switches"
+    },
+    "Zones": {
+        "@odata.id": "/redfish/v1/Fabrics/CXL/Zones"
+    }
+}
+
+test_connection_cxl_fabric = {
+    "@odata.id": "/redfish/v1/Fabrics/CXL/Connections/12",
+    "@odata.type": "#Connection.v1_1_0.Connection",
+    "ConnectionType": "Memory",
+    "Description": "CXL Connection 12 Information",
+    "Id": "12",
+    "Links": {
+        "InitiatorEndpoints": [
+            {
+                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/I2"
+            }
+        ],
+        "TargetEndpoints": [
+            {
+                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/T2"
+            }
+        ]
+    },
+    "MemoryChunkInfo": [
+        {
+            "AccessCapabilities": [
+                "Read",
+                "Write"
+            ],
+            "MemoryChunk": {
+                "@odata.id": "/redfish/v1/Chassis/PCXL2/MemoryDomains/1/MemoryChunks/1"
+            }
+        }
+    ],
+    "Status": {
+        "Health": "OK",
+        "HealthRollup": "OK",
+        "State": "Enabled"
+    }
+}
+
+test_response_connection_cxl_fabric = {
+    "@odata.id": "/redfish/v1/Fabrics/CXL/Connections/12",
+    "@odata.type": "#Connection.v1_1_0.Connection",
+    "ConnectionType": "Memory",
+    "Description": "CXL Connection 12 Information",
+    "Id": "12",
+    "Links": {
+        "InitiatorEndpoints": [
+            {
+                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/I2"
+            }
+        ],
+        "TargetEndpoints": [
+            {
+                "@odata.id": "/redfish/v1/Fabrics/CXL/Endpoints/T2"
+            }
+        ]
+    },
+    "MemoryChunkInfo": [
+        {
+            "AccessCapabilities": [
+                "Read",
+                "Write"
+            ],
+            "MemoryChunk": {
+                "@odata.id": "/redfish/v1/Chassis/PCXL2/MemoryDomains/1/MemoryChunks/1"
+            }
+        }
+    ],
+    "Status": {
+        "Health": "OK",
+        "HealthRollup": "OK",
+        "State": "Enabled"
+    },
+    "Oem": {
+        "Sunfish_RM": {
+            "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
+            "ManagingAgent": {
+                "@odata.id": "/redfish/v1/AggregationService/AggregationSources/afd9e24c-20d1-479e-be24-4ad6a62f7197"
+            }
+        }
+    }
+}
+
+resource_event_no_context = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Id": "2",
+    "Name": "Fabric Created",
+    "Context": "",
+    "Events": [{
+        "EventType": "Other",
+        "EventId": "4595",
+        "Severity": "OK",
+        "Message": "New Resource Created ",
+        "MessageId": "ResourceEvent.1.0.ResourceCreated",
+        "MessageArgs": [],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/CXL"
+        }
+    }]
 }

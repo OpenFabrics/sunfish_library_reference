@@ -29,7 +29,7 @@ class PropertyNotFound(BaseException):
 
     def __init__(self, attribute_name):
         self.attribute_name = attribute_name
-        message = "Attribute " + attribute_name + "not found."
+        message = f"Attribute not found: {attribute_name}."
         self.message = message
         super().__init__(self.message)
 
@@ -121,5 +121,22 @@ class DestinationError(BaseException):
     
     def __init__(self):
         message = "[Error] Cannot reach Destination"
+        self.message = message
+        super().__init__(self.message)
+
+
+class AgentForwardingFailure(BaseException):
+    """
+        Exception raised by the agents forwarding logic in case of error.
+    """
+    def __init__(self, operation, error_code, reason):
+        """
+
+        Args:
+            operation: A string containing the operation executed and the target resource
+            error_code: The HTTP error code
+            reason: The reason for failure reported by the agent HTTP server
+        """
+        message = f"Agent forwarding failure while {operation}. Error code: {error_code}. Reason: {reason}"
         self.message = message
         super().__init__(self.message)
