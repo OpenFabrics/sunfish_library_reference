@@ -83,13 +83,16 @@ class BackendFS(BackendInterface):
                 else:
                     if data[id[index]]:
                         element = data[id[index]]
-                        if element["@odata.id"] == os.path.join(self.redfish_root, '/'.join(id[:index + 1])):
-                            present = True
-                        else:
-                            element["@odata.id"] = os.path.join(self.redfish_root, '/'.join(id[:index + 1]))
-                            with open(to_check, 'w') as data_json:
-                                json.dump(data, data_json, indent=4, sort_keys=True)
-                                data_json.close()
+                        if type(element) is not list:
+                            continue
+                        for el in element:
+                            if el["@odata.id"] == os.path.join(self.redfish_root, '/'.join(id[:index + 1])):
+                                present = True
+                            else:
+                                el["@odata.id"] = os.path.join(self.redfish_root, '/'.join(id[:index + 1]))
+                                with open(to_check, 'w') as data_json:
+                                    json.dump(data, data_json, indent=4, sort_keys=True)
+                                    data_json.close()
 
         last_element = len(id) - 1
         collection_type = id[last_element - 1]

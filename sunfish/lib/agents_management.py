@@ -110,6 +110,9 @@ class Agent:
                 logger.debug(f"PATCH request was successful. status code: {r.status_code}, reason {r.reason}")
                 logger.debug(f"Response payload:\n {json.dumps(r.json(), indent=2)}")
                 return r.json()
+            elif r.status_code == 204:
+                logger.debug(f"PATCH request was successful. status code: {r.status_code}, reason {r.reason}")
+                return {}
             else:
                 logger.debug(f"PATCH request was unsuccessful. status code: {r.status_code}, reason {r.reason}")
                 raise AgentForwardingFailure(f"patching object {resource_uri} ", r.status_code, r.reason)

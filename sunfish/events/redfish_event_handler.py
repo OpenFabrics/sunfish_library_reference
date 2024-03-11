@@ -217,8 +217,11 @@ class RedfishEventHandler(EventHandlerInterface):
             try:
                 data = self.core.get_object(path)
                 # print('send to: ', data["Id"])
-                requests.post(data['Destination'], json=payload)
-            except requests.exceptions.ConnectionError as e:
+                resp = requests.post(data['Destination'], json=payload)
+                resp.raise_for_status()
+            except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+                logger.warning(f"Unable to contact event destination {id} for event , skipping.")
+                logger.warning(f"Event log: \n{json.dumps(payload, indent=2)}")
                 list.remove(id)
             except ResourceNotFound:
                 raise ResourceNotFound(path)
