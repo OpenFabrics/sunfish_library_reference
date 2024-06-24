@@ -4,7 +4,6 @@
 import json
 import logging
 import os
-from uuid import uuid4
 import warnings
 
 import requests

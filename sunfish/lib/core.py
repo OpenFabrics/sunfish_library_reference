@@ -8,15 +8,14 @@ import uuid
 import logging
 from typing import Optional
 
-from sunfish.storage.backend_FS import BackendFS
 from sunfish.lib.exceptions import CollectionNotSupported, ResourceNotFound, AgentForwardingFailure, PropertyNotFound
-from sunfish.events.redfish_event_handler import RedfishEventHandler, RedfishEventHandlersTable
+from sunfish_plugins.event_handlers.redfish.redfish_event_handler import RedfishEventHandler
 
 from sunfish.events.redfish_subscription_handler import RedfishSubscriptionHandler
 from sunfish.lib.object_handler import RedfishObjectHandler
 from sunfish.models.types import *
 from sunfish.lib.agents_management import Agent
-
+import sunfish.models.plugins as plugin_modules
 logger = logging.getLogger(__name__)
 
 
@@ -31,16 +30,61 @@ class Core:
 
         self.conf = conf
 
-        if conf['storage_backend'] == 'FS':
-            self.storage_backend = BackendFS(self.conf)
-        # elif conf['storage_backend'] == '<OTHER STORAGE>':
-        # ...
+        # The Sunfish core library uses a plugin mechanism that allows dynamic loading of certain classes. This helps
+        # users with updating the behavior of the sunfish library without having to modify its core classes.
+        # At the moment we support plugins for the storage backend and for the redfish event handlers.
+        # Plugins are implemented as namespaced packages and must be placed in a folder at the top of the project named
+        # "sunfish_plugins", with subfolders named "storage" and/or "event_handlers". The python packages defined inside
+        # each subfolder are totally user defined.
+        # ── sunfish_plugins
+        #    ├── storage
+        #    │   └──my_storage_package     <--- User defined
+        #    │      ├── __init__.py
+        #    │      └── my_storage_backend.py
+        #    └── event_handlers
+        #        └──my_handler_package     <--- User defined
+        #           ├── __init__.py
+        #           └── my_handler.py
+
+        # When initializing the Sunfish libraries can load their storage or event handler plugin by specifying them in
+        # the configuration as in the below example:
+        #
+        # "storage_backend" : {
+        #         "module_name": "storage.my_storage_package.my_storage_backend",
+        #         "class_name": "StorageBackend"
+        # },
+        # "event_backend" : {
+        #         "module_name": "event-handlers.my_handler_package.my_handler",
+        #         "class_name": "StorageBackend"
+        # },
+        #
+        # In both cases "class_name" represents the name of the class that is initialized and implements the respective
+        # interface.
+
+        # Default storage plugin loaded if nothing is specified in the configuration
+        if not "storage_backend" in conf:
+            storage_plugin = {
+                "module_name": "storage.file_system_backend.backend_FS",
+                "class_name": "BackendFS"
+            }
+        else:
+            storage_plugin = conf["storage_backend"]
+        storage_cl = plugin_modules.load_plugin(storage_plugin)
+        self.storage_backend = storage_cl(self.conf)
+
+        # Default event_handler plugin loaded if nothing is specified in the configuration
+        if not "event_handler" in conf:
+            event_plugin = {
+                "module_name": "event_handlers.redfish.redfish_event_handler",
+                "class_name": "RedfishEventHandler"
+            }
+        else:
+            event_plugin = conf["event_handler"]
+        event_cl = plugin_modules.load_plugin(event_plugin)
+        self.event_handler = event_cl(self)
 
         if conf['handlers']['subscription_handler'] == 'redfish':
             self.subscription_handler = RedfishSubscriptionHandler(self)
-
-        if conf['handlers']['event_handler'] == 'redfish':
-            self.event_handler = RedfishEventHandler(self)
 
     def get_object(self, path: string):
         """Calls the correspondent read function from the backend implementation and checks that the path is valid.

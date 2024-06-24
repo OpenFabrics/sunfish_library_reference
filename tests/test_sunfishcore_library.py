@@ -6,15 +6,12 @@ from genericpath import isdir
 # from http.server import BaseHTTPRequestHandler
 import json
 import os
-import shutil
 import logging
 import pytest
-import requests
 from pytest_httpserver import HTTPServer
 from sunfish.lib.core import Core
 from sunfish.lib.exceptions import *
 from tests import test_utils, tests_template
-
 class TestSunfishcoreLibrary():
     @classmethod
     def setup_class(cls):
@@ -26,6 +23,17 @@ class TestSunfishcoreLibrary():
             raise ResourceNotFound('conf.json')
 
         cls.core = Core(cls.conf)
+
+    @pytest.mark.order("first")
+    def test_init_core(self):
+        path = os.path.join(os.getcwd(), 'tests', 'conf.json')
+        try:
+            json_data = open(path)
+            conf = json.load(json_data)
+        except FileNotFoundError as e:
+            raise ResourceNotFound('conf.json')
+
+        core = Core(conf)
 
     # TEST REST
     # Delete
