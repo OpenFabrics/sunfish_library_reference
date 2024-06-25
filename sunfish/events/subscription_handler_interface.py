@@ -4,18 +4,19 @@
 
 from abc import abstractmethod
 
+
 class SubscriptionHandlerInterface():
     @abstractmethod
-    def load_subscriptions():
+    def load_subscriptions(self):
         pass
     @abstractmethod
-    def new_subscription():
-        pass
-
-    @abstractmethod
-    def validate_subscription():
+    def new_subscription(self, payload: dict):
         pass
 
     @abstractmethod
-    def delete_subscription():
+    def validate_subscription(self, payload: dict):
+        pass
+
+    @abstractmethod
+    def delete_subscription(self, id):
         pass

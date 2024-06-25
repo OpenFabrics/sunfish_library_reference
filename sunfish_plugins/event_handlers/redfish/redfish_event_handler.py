@@ -8,7 +8,7 @@ import warnings
 
 import requests
 from sunfish.events.event_handler_interface import EventHandlerInterface
-from sunfish.events.redfish_subscription_handler import subscribtions
+from sunfish.events.redfish_subscription_handler import subscriptions
 from sunfish.lib.exceptions import *
 
 logger = logging.getLogger("RedfishEventHandler")
@@ -136,11 +136,11 @@ class RedfishEventHandler(EventHandlerInterface):
             to_forward = []
             to_exclude = []
 
-            if prefix in subscribtions["RegistryPrefixes"]:
-                for id in subscribtions["RegistryPrefixes"][prefix]["exclude"]:
+            if prefix in subscriptions["RegistryPrefixes"]:
+                for id in subscriptions["RegistryPrefixes"][prefix]["exclude"]:
                     to_exclude.extend(id)
-            if messageId in subscribtions["MessageIds"]:
-                for id in subscribtions["MessageIds"][messageId]["exclude"]:
+            if messageId in subscriptions["MessageIds"]:
+                for id in subscriptions["MessageIds"][messageId]["exclude"]:
                     to_exclude.append(id)
             
             """ ResourceTypes, OriginResources and SubordinateResources are checked only if the event
@@ -152,37 +152,24 @@ class RedfishEventHandler(EventHandlerInterface):
                     type = self.check_data_type(origin)
                 except ResourceNotFound as e:
                     raise ResourceNotFound(e.resource_id)
-                if type in subscribtions["ResourceTypes"]:
-                    to_forward.extend(subscribtions["ResourceTypes"][type])
-                if origin in subscribtions["OriginResources"]:
-                    to_forward.extend(subscribtions["OriginResources"][origin])
+                if type in subscriptions["ResourceTypes"]:
+                    to_forward.extend(subscriptions["ResourceTypes"][type])
+                if origin in subscriptions["OriginResources"]:
+                    to_forward.extend(subscriptions["OriginResources"][origin])
                 sub = self.check_subdirs(origin)
                 to_forward.extend(sub)
 
-            if prefix in subscribtions["RegistryPrefixes"]:
-                for id in subscribtions["RegistryPrefixes"][prefix]["to_send"]:
+            if prefix in subscriptions["RegistryPrefixes"]:
+                for id in subscriptions["RegistryPrefixes"][prefix]["to_send"]:
                     to_forward.append(id)
-            if messageId in subscribtions["MessageIds"]:
-                for id in subscribtions["MessageIds"][messageId]["to_send"]:
+            if messageId in subscriptions["MessageIds"]:
+                for id in subscriptions["MessageIds"][messageId]["to_send"]:
                     to_forward.append(id)
             
             set1 = set(to_forward)
             set2 = set(to_exclude)
             to_forward = list(set1 - set2)
-            
-            #MemberId
-            # if prefix in subscribtions["RegistryPrefixes"]:
-            #     for id in subscribtions["RegistryPrefixes"][prefix]["to_send"]:
-            #             if messageId not in subscribtions["MessageIds"] or messageId in subscribtions["MessageIds"] and not id in subscribtions["MessageIds"][messageId]["exclude"]:
-            #                 to_forward.append(id)
-            # if prefix in subscribtions["MessageIds"]:
-            #     for id in subscribtions["MessageIds"][payload["MessageId"]]:
-            #             for x in subscribtions["RegistryPrefixes"][prefix]:
-            #                 if x not in subscribtions["RegistryPrefixes"][prefix]["exclude"]:
-            #                     to_forward.append(id)
-        
-            ## parameter of forward_event is a set with no duplicates 
-            # return self.forward_event(list(set(to_forward)), payload)
+
             return self.forward_event(to_forward, payload)
         
     def check_data_type(self, origin):
@@ -229,13 +216,13 @@ class RedfishEventHandler(EventHandlerInterface):
         return list
 
     def check_subdirs(self, origin):
-        keylist = list(subscribtions["OriginResources"].keys())
+        keylist = list(subscriptions["OriginResources"].keys())
         to_forward = []
         for el in keylist:
             if '/*' in el:
                 base_origin = el.replace("/*", "")
                 if base_origin in origin:
-                        for id in subscribtions["OriginResources"][el]:
+                        for id in subscriptions["OriginResources"][el]:
                             to_forward.append(id)
         
         return to_forward
