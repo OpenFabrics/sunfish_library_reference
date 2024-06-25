@@ -9,10 +9,8 @@ import logging
 from typing import Optional
 
 from sunfish.lib.exceptions import CollectionNotSupported, ResourceNotFound, AgentForwardingFailure, PropertyNotFound
-from sunfish_plugins.event_handlers.redfish.redfish_event_handler import RedfishEventHandler
 
 from sunfish.events.redfish_subscription_handler import RedfishSubscriptionHandler
-from sunfish.lib.object_handler import RedfishObjectHandler
 from sunfish.models.types import *
 from sunfish.lib.agents_management import Agent
 import sunfish.models.plugins as plugin_modules
@@ -34,17 +32,21 @@ class Core:
         # users with updating the behavior of the sunfish library without having to modify its core classes.
         # At the moment we support plugins for the storage backend and for the redfish event handlers.
         # Plugins are implemented as namespaced packages and must be placed in a folder at the top of the project named
-        # "sunfish_plugins", with subfolders named "storage" and/or "event_handlers". The python packages defined inside
-        # each subfolder are totally user defined.
+        # "sunfish_plugins", with subfolders named "storage" and/or "events_handlers" and/or "objects_handlers".
+        # The python packages defined inside each subfolder are totally user defined.
         # ── sunfish_plugins
         #    ├── storage
         #    │   └──my_storage_package     <--- User defined
         #    │      ├── __init__.py
         #    │      └── my_storage_backend.py
-        #    └── event_handlers
-        #        └──my_handler_package     <--- User defined
-        #           ├── __init__.py
-        #           └── my_handler.py
+        #    └── events_handlers
+        #    │   └──my_handler_package     <--- User defined
+        #    │      ├── __init__.py
+        #    │      └── my_handler.py
+        #    ├── object_handlers
+        #    │   └──my_objects_handler_package     <--- User defined
+        #    │      ├── __init__.py
+        #    │      └── my_objects_handler.py
 
         # When initializing the Sunfish libraries can load their storage or event handler plugin by specifying them in
         # the configuration as in the below example:
@@ -53,16 +55,20 @@ class Core:
         #         "module_name": "storage.my_storage_package.my_storage_backend",
         #         "class_name": "StorageBackend"
         # },
-        # "event_backend" : {
-        #         "module_name": "event-handlers.my_handler_package.my_handler",
+        # "event_handler" : {
+        #         "module_name": "events_handlers.my_handler_package.my_handler",
+        #         "class_name": "StorageBackend"
+        # },
+        # "objects_handler" : {
+        #         "module_name": "objects_handlers.my_objects_handler_package.my_objects_handler",
         #         "class_name": "StorageBackend"
         # },
         #
-        # In both cases "class_name" represents the name of the class that is initialized and implements the respective
+        # In all cases "class_name" represents the name of the class that is initialized and implements the respective
         # interface.
 
         # Default storage plugin loaded if nothing is specified in the configuration
-        if not "storage_backend" in conf:
+        if "storage_backend" not in conf:
             storage_plugin = {
                 "module_name": "storage.file_system_backend.backend_FS",
                 "class_name": "BackendFS"
@@ -73,15 +79,26 @@ class Core:
         self.storage_backend = storage_cl(self.conf)
 
         # Default event_handler plugin loaded if nothing is specified in the configuration
-        if not "event_handler" in conf:
+        if "events_handler" not in conf:
             event_plugin = {
-                "module_name": "event_handlers.redfish.redfish_event_handler",
+                "module_name": "events_handlers.redfish.redfish_event_handler",
                 "class_name": "RedfishEventHandler"
             }
         else:
-            event_plugin = conf["event_handler"]
+            event_plugin = conf["events_handler"]
         event_cl = plugin_modules.load_plugin(event_plugin)
         self.event_handler = event_cl(self)
+
+        # Default objects_handler plugin loaded if nothing is specified in the configuration
+        if "objects_handler" not in conf:
+            objects_plugin = {
+                "module_name": "objects_handlers.sunfish_server.redfish_object_handler",
+                "class_name": "RedfishObjectHandler"
+            }
+        else:
+            objects_plugin = conf["objects_handler"]
+        objects_handler_cl = plugin_modules.load_plugin(objects_plugin)
+        self.objects_handler = objects_handler_cl(self)
 
         if conf['handlers']['subscription_handler'] == 'redfish':
             self.subscription_handler = RedfishSubscriptionHandler(self)
@@ -123,7 +140,7 @@ class Core:
         # before to add the ID and to call the methods there should be the json validation
 
         # generate unique uuid if is not present
-        if not '@odata.id' in payload and not 'Id' in payload:
+        if '@odata.id' not in payload and 'Id' not in payload:
             id = str(uuid.uuid4())
             to_add = {
                 'Id': id,
@@ -142,11 +159,11 @@ class Core:
             # 1. check the path target of the operation exists
             # self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            agent_response = self._forward_to_agent(SunfishRequestType.CREATE, path, payload=payload)
+            agent_response = self.objects_handler.forward_to_manager(SunfishRequestType.CREATE, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
             # 3. Execute any custom handler for this object type
-            RedfishObjectHandler.dispatch(self, object_type, path, SunfishRequestType.CREATE, payload=payload)
+            self.objects_handler.dispatch(object_type, path, SunfishRequestType.CREATE, payload=payload)
         except ResourceNotFound:
             logger.error("The collection where the resource is to be created does not exist.")
         except AgentForwardingFailure as e:
@@ -175,9 +192,9 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            self._forward_to_agent(SunfishRequestType.REPLACE, path, payload=payload)
+            self.objects_handler.forward_to_manager(SunfishRequestType.REPLACE, path, payload=payload)
             # 3. Execute any custom handler for this object type
-            RedfishObjectHandler.dispatch(self, object_type, path, SunfishRequestType.REPLACE, payload=payload)
+            self.objects_handler.dispatch(object_type, path, SunfishRequestType.REPLACE, payload=payload)
         except ResourceNotFound:
             logger.error(logger.error(f"The resource to be replaced ({path}) does not exist."))
         except AttributeError:
@@ -205,9 +222,9 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            self._forward_to_agent(SunfishRequestType.PATCH, path, payload=payload)
+            self.objects_handler.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
             # 3. Execute any custom handler for this object type
-            RedfishObjectHandler.dispatch(self, object_type, path, SunfishRequestType.PATCH, payload=payload)
+            self.objects_handler.dispatch(object_type, path, SunfishRequestType.PATCH, payload=payload)
         except ResourceNotFound:
             logger.error(f"The resource to be patched ({path}) does not exist.")
         except AttributeError:
@@ -236,9 +253,9 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            self._forward_to_agent(SunfishRequestType.DELETE, path)
+            self.objects_handler.forward_to_manager(SunfishRequestType.DELETE, path)
             # 3. Execute any custom handler for this object type
-            RedfishObjectHandler.dispatch(self, object_type, path, SunfishRequestType.DELETE)
+            self.objects_handler.dispatch(object_type, path, SunfishRequestType.DELETE)
         except ResourceNotFound:
             logger.error(f"The resource to be deleted ({path}) does not exist.")
         except AttributeError:
@@ -277,46 +294,3 @@ class Core:
             raise PropertyNotFound("@odata.type")
 
         return object_type
-
-    def _forward_to_agent(self, request_type: SunfishRequestType, path: string, payload: dict = None) -> Optional[dict]:
-        agent_response = None
-        path_to_check = path
-        if request_type == SunfishRequestType.CREATE:
-            # When creating an object, the request must be done on the Collection. Since collections are generally not
-            # marked with the managing agent we check whether the parent of the collection, that must be a single entity
-            # is managed by an agent.
-            # Example create a Fabric connections on a fabric named CXL would be issued against
-            #  /redfish/v1/Fabrics/CXL/Connections
-            # The connections collection does not have an agent but the parent CXL fabric does and that's what we are
-            # going to use.
-            # The only place where this might not be working is if the collection we post to is a top level one like:
-            #  /redfish/v1/Systems
-            # in this case there would be no parent to inherit the agent from. Here this creation request should be
-            # rejected because in Sunfish only agents can create elements in the top level directories and this is done
-            # via events.
-            path_elems = path.split("/")[1:-1]
-            path_to_check = "".join(f"/{e}" for e in path_elems)
-            # get the parent path
-        logger.debug(f"Checking managing agent for path: {path_to_check}")
-        agent = Agent.is_agent_managed(self, path_to_check)
-        if agent:
-            logger.debug(f"{path} is managed by an agent, forwarding the request")
-            try:
-                agent_response = agent.forward_request(request_type, path, payload=payload)
-            except AgentForwardingFailure as e:
-                raise e
-
-            if request_type == SunfishRequestType.CREATE:
-                # mark the resource with the managing agent
-                oem = {
-                    "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
-                    "ManagingAgent": {
-                        "@odata.id": agent.get_id()
-                    }
-                }
-                if "Oem" not in agent_response:
-                    agent_response["Oem"] = {}
-                    agent_response["Oem"]["Sunfish_RM"] = oem
-        else:
-            logger.debug(f"{path} is not managed by an agent")
-        return agent_response
