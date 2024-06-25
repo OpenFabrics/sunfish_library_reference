@@ -13,7 +13,11 @@ plugins_namespace_name = "sunfish_plugins"
 def load_plugin(plugin: dict):
     module_name = f"{plugins_namespace_name}.{plugin['module_name']}"
     logger.info(f"Loading plugin {module_name}...")
-    plugin_module = importlib.import_module(module_name)
+    try:
+        plugin_module = importlib.import_module(module_name)
+    except ModuleNotFoundError as e:
+        logger.error(f"Plugin module {module_name} does not exist")
+        raise e
     logger.info("Plugin loaded")
     return getattr(plugin_module, plugin["class_name"])
 

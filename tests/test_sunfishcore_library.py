@@ -35,6 +35,18 @@ class TestSunfishcoreLibrary():
 
         core = Core(conf)
 
+    @pytest.mark.order("second")
+    def test_init_core_wrong_plugin(self):
+        path = os.path.join(os.getcwd(), 'tests', 'conf_broken_module.json')
+        try:
+            json_data = open(path)
+            conf = json.load(json_data)
+        except FileNotFoundError as e:
+            raise ResourceNotFound('conf.json')
+        with pytest.raises(ModuleNotFoundError):
+            core = Core(conf)
+
+
     # TEST REST
     # Delete
     @pytest.mark.order("last")
