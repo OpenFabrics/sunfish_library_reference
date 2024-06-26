@@ -5,8 +5,13 @@ description = ""
 authors = ["Erika Rosaverde <erika.rosaverde@ibm.com>"]
 readme = "README.md"
 packages = [
-	{ include = "sunfish" }
+	{ include = "sunfish" },
+	{ include = "sunfish_plugins", from = "." }
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sunfish_plugins.*"]
 
 [tool.poetry.dependencies]
 python = ">=3.9"

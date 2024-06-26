@@ -8,3 +8,8 @@ tests/.pytest_cache
 # Remove directory __pycache__
 __pycache__
 venv
+
+.idea
+build
+sunfish.egg-info
+

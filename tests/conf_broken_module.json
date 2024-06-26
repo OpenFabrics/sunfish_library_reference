@@ -1,23 +1,19 @@
 {
     "redfish_root": "/redfish/v1/",
     "storage_backend": {
-        "module_name": "storage.file_system_backend.backend_FS",
+        "module_name": "wrong.module.for.test",
         "class_name": "BackendFS"
     },
     "backend_conf" : {
         "fs_root": "Resources",
         "subscribers_root": "EventService/Subscriptions"
     },
-    "events_handler": {
-        "module_name": "events_handlers.redfish.redfish_event_handler",
+    "event_handler": {
+        "module_name": "event_handlers.redfish.redfish_event_handler",
         "class_name": "RedfishEventHandler"
     },
     "handlers": {
         "subscription_handler": "redfish",
         "event_handler": "redfish"
-    },
-    "objects_handler": {
-        "module_name": "objects_handlers.sunfish_server.redfish_object_handler",
-        "class_name": "RedfishObjectHandler"
     }
 }
