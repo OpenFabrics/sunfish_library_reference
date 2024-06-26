@@ -43,9 +43,10 @@ class TestSunfishcoreLibrary():
             conf = json.load(json_data)
         except FileNotFoundError as e:
             raise ResourceNotFound('conf.json')
-        with pytest.raises(ModuleNotFoundError):
+        try:
             core = Core(conf)
-
+        except ModuleNotFoundError as e:
+            assert False, f" test_init_core_wrong_plugin raised an exception {e}"
 
     # TEST REST
     # Delete

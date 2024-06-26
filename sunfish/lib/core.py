@@ -16,6 +16,20 @@ from sunfish.lib.agents_management import Agent
 import sunfish.models.plugins as plugin_modules
 logger = logging.getLogger(__name__)
 
+plugins_default = {
+    "storage_backend": {
+                "module_name": "storage.file_system_backend.backend_FS",
+                "class_name": "BackendFS"
+    },
+    "events_handler": {
+                "module_name": "events_handlers.redfish.redfish_event_handler",
+                "class_name": "RedfishEventHandler"
+    },
+    "objects_handler": {
+        "module_name": "objects_handlers.sunfish_server.redfish_object_handler",
+        "class_name": "RedfishObjectHandler"
+    }
+}
 
 class Core:
 
@@ -68,36 +82,45 @@ class Core:
         # interface.
 
         # Default storage plugin loaded if nothing is specified in the configuration
+        # or if the configuration is not correct
         if "storage_backend" not in conf:
-            storage_plugin = {
-                "module_name": "storage.file_system_backend.backend_FS",
-                "class_name": "BackendFS"
-            }
+            storage_plugin = plugins_default["storage_backend"]
         else:
             storage_plugin = conf["storage_backend"]
-        storage_cl = plugin_modules.load_plugin(storage_plugin)
+        try:
+            storage_cl = plugin_modules.load_plugin(storage_plugin)
+        except ModuleNotFoundError:
+            logger.warning(f"Falling back to the default storage_backend plugin")
+            # If this one fails as well, then we have a problem and we must fail
+            storage_cl = plugin_modules.load_plugin(plugins_default["storage_backend"])
         self.storage_backend = storage_cl(self.conf)
 
         # Default event_handler plugin loaded if nothing is specified in the configuration
+        # or if the configuration is not correct
         if "events_handler" not in conf:
-            event_plugin = {
-                "module_name": "events_handlers.redfish.redfish_event_handler",
-                "class_name": "RedfishEventHandler"
-            }
+            event_plugin = plugins_default["events_handler"]
         else:
             event_plugin = conf["events_handler"]
-        event_cl = plugin_modules.load_plugin(event_plugin)
+        try:
+            event_cl = plugin_modules.load_plugin(event_plugin)
+        except ModuleNotFoundError:
+            logger.warning(f"Falling back to the default events_handler plugin")
+            # If this one fails as well, then we have a problem and we must fail
+            event_cl = plugin_modules.load_plugin(plugins_default["events_handler"])
         self.event_handler = event_cl(self)
 
         # Default objects_handler plugin loaded if nothing is specified in the configuration
+        # or if the configuration is not correct
         if "objects_handler" not in conf:
-            objects_plugin = {
-                "module_name": "objects_handlers.sunfish_server.redfish_object_handler",
-                "class_name": "RedfishObjectHandler"
-            }
+            objects_plugin = plugins_default["objects_handler"]
         else:
             objects_plugin = conf["objects_handler"]
-        objects_handler_cl = plugin_modules.load_plugin(objects_plugin)
+        try:
+            objects_handler_cl = plugin_modules.load_plugin(objects_plugin)
+        except ModuleNotFoundError:
+            logger.warning(f"Falling back to the default objects_handler plugin")
+            # If this one fails as well, then we have a problem and we must fail
+            objects_handler_cl = plugin_modules.load_plugin(plugins_default["objects_handler"])
         self.objects_handler = objects_handler_cl(self)
 
         if conf['handlers']['subscription_handler'] == 'redfish':
