@@ -6,13 +6,11 @@ import os
 import string
 import uuid
 import logging
-from typing import Optional
 
 from sunfish.lib.exceptions import CollectionNotSupported, ResourceNotFound, AgentForwardingFailure, PropertyNotFound
 
 from sunfish.events.redfish_subscription_handler import RedfishSubscriptionHandler
 from sunfish.models.types import *
-from sunfish.lib.agents_management import Agent
 import sunfish.models.plugins as plugin_modules
 logger = logging.getLogger(__name__)
 
@@ -28,6 +26,10 @@ plugins_default = {
     "objects_handler": {
         "module_name": "objects_handlers.sunfish_server.redfish_object_handler",
         "class_name": "RedfishObjectHandler"
+    },
+    "objects_manager": {
+        "module_name": "objects_managers.sunfish_agent.sunfish_agent_manager",
+        "class_name": "SunfishAgentManager"
     }
 }
 
@@ -57,10 +59,14 @@ class Core:
         #    │   └──my_handler_package     <--- User defined
         #    │      ├── __init__.py
         #    │      └── my_handler.py
-        #    ├── object_handlers
+        #    ├── objects_handlers
         #    │   └──my_objects_handler_package     <--- User defined
         #    │      ├── __init__.py
         #    │      └── my_objects_handler.py
+        #    ├── objects_managers
+        #    │   └──my_objects_manager_package     <--- User defined
+        #    │      ├── __init__.py
+        #    │      └── my_objects_manager.py
 
         # When initializing the Sunfish libraries can load their storage or event handler plugin by specifying them in
         # the configuration as in the below example:
@@ -70,13 +76,17 @@ class Core:
         #         "class_name": "StorageBackend"
         # },
         # "event_handler" : {
-        #         "module_name": "events_handlers.my_handler_package.my_handler",
-        #         "class_name": "StorageBackend"
+        #         "module_name": "events_handlers.my_events_handler_package.my_events_handler",
+        #         "class_name": "EventsHandler"
         # },
         # "objects_handler" : {
         #         "module_name": "objects_handlers.my_objects_handler_package.my_objects_handler",
-        #         "class_name": "StorageBackend"
+        #         "class_name": "ObjectsHandler"
         # },
+        # "objects_manager": {
+        #         "module_name": "objects_managers.my_objects_manager_package.my_objects_manager",
+        #         "class_name": "ObjectsManager"
+        # }
         #
         # In all cases "class_name" represents the name of the class that is initialized and implements the respective
         # interface.
@@ -122,6 +132,20 @@ class Core:
             # If this one fails as well, then we have a problem and we must fail
             objects_handler_cl = plugin_modules.load_plugin(plugins_default["objects_handler"])
         self.objects_handler = objects_handler_cl(self)
+
+        # Default objects_manager plugin loaded if nothing is specified in the configuration
+        # or if the configuration is not correct
+        if "objects_manager" not in conf:
+            objects_manager_plugin = plugins_default["objects_manager"]
+        else:
+            objects_manager_plugin = conf["objects_manager"]
+        try:
+            objects_manager_cl = plugin_modules.load_plugin(objects_manager_plugin)
+        except ModuleNotFoundError:
+            logger.warning(f"Falling back to the default objects_handler plugin")
+            # If this one fails as well, then we have a problem and we must fail
+            objects_manager_cl = plugin_modules.load_plugin(plugins_default["objects_manager"])
+        self.objects_manager = objects_manager_cl(self)
 
         if conf['handlers']['subscription_handler'] == 'redfish':
             self.subscription_handler = RedfishSubscriptionHandler(self)
@@ -182,7 +206,7 @@ class Core:
             # 1. check the path target of the operation exists
             # self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            agent_response = self.objects_handler.forward_to_manager(SunfishRequestType.CREATE, path, payload=payload)
+            agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.CREATE, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
             # 3. Execute any custom handler for this object type
@@ -215,7 +239,7 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            self.objects_handler.forward_to_manager(SunfishRequestType.REPLACE, path, payload=payload)
+            self.objects_manager.forward_to_manager(SunfishRequestType.REPLACE, path, payload=payload)
             # 3. Execute any custom handler for this object type
             self.objects_handler.dispatch(object_type, path, SunfishRequestType.REPLACE, payload=payload)
         except ResourceNotFound:
@@ -245,7 +269,7 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            self.objects_handler.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
+            self.objects_manager.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
             # 3. Execute any custom handler for this object type
             self.objects_handler.dispatch(object_type, path, SunfishRequestType.PATCH, payload=payload)
         except ResourceNotFound:
@@ -276,7 +300,7 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            self.objects_handler.forward_to_manager(SunfishRequestType.DELETE, path)
+            self.objects_manager.forward_to_manager(SunfishRequestType.DELETE, path)
             # 3. Execute any custom handler for this object type
             self.objects_handler.dispatch(object_type, path, SunfishRequestType.DELETE)
         except ResourceNotFound:

@@ -325,7 +325,6 @@ class RedfishEventHandler(EventHandlerInterface):
             raise PropertyNotFound(f"missing @odata.id in \n {json.dumps(redfish_obj, indent=2)}")
 
         file_path = os.path.join(self.conf['redfish_root'], obj_path)
-        #file_path = create_path(constants.PATHS['Root'], obj_path)
 
         if 'Collection' not in redfish_obj['@odata.type']:
             try:
@@ -340,13 +339,29 @@ class RedfishEventHandler(EventHandlerInterface):
             logger.debug("This is a collection")
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
-    if "Oem" not in redfish_obj:
-        redfish_obj["Oem"] = {}
-    if "Sunfish_RM" not in redfish_obj["Oem"]:
-        oem = {
-            "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
-            "ManagingAgent": {
-                "@odata.id": aggregation_source["@odata.id"]
-            }
+    oem = {
+        "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
+        "ManagingAgent": {
+            "@odata.id": aggregation_source["@odata.id"]
         }
+    }
+    if "Oem" not in redfish_obj:
+        redfish_obj["Oem"] = {"Sunfish_RM": oem}
+    elif "Sunfish_RM" not in redfish_obj["Oem"]:
         redfish_obj["Oem"]["Sunfish_RM"] = oem
+    else:
+        if "ManagingAgent" in redfish_obj["Oem"]["Sunfish_RM"]:
+            # We should not be here because the object we are just visiting while adding the agent should not have a
+            # managing agent reference in its fields. The one reason why we end-up here could be
+            # that the agent has populated a field that it is none of its business.
+            # What we are going to do for the time being is to rewrite the field with the current agent and generate a
+            # warning for the user.
+            # TODO: In the future we might want to check whether this is happening because the agent had failed and it
+            #       is restarting under a new identity. Still, the agent should not have any business with this specific
+            #       field because it is only generated and handled by sunfish.
+            logger.warning(f"""The object {redfish_obj["@odata.id"]} returned while registering agent {aggregation_source["@odata.id"]} contains already a managing agent ({redfish_obj['Oem']['Sunfish_RM']['ManagingAgent']['@odata.id']}) 
+                           and this should not be happening""")
+
+        redfish_obj["Oem"]["Sunfish_RM"]["ManagingAgent"] = {
+            "@odata.id": aggregation_source["@odata.id"]
+        }
