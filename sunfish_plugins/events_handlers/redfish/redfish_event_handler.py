@@ -4,12 +4,11 @@
 import json
 import logging
 import os
-from uuid import uuid4
 import warnings
 
 import requests
 from sunfish.events.event_handler_interface import EventHandlerInterface
-from sunfish.events.redfish_subscription_handler import subscribtions
+from sunfish.events.redfish_subscription_handler import subscriptions
 from sunfish.lib.exceptions import *
 
 logger = logging.getLogger("RedfishEventHandler")
@@ -137,11 +136,11 @@ class RedfishEventHandler(EventHandlerInterface):
             to_forward = []
             to_exclude = []
 
-            if prefix in subscribtions["RegistryPrefixes"]:
-                for id in subscribtions["RegistryPrefixes"][prefix]["exclude"]:
+            if prefix in subscriptions["RegistryPrefixes"]:
+                for id in subscriptions["RegistryPrefixes"][prefix]["exclude"]:
                     to_exclude.extend(id)
-            if messageId in subscribtions["MessageIds"]:
-                for id in subscribtions["MessageIds"][messageId]["exclude"]:
+            if messageId in subscriptions["MessageIds"]:
+                for id in subscriptions["MessageIds"][messageId]["exclude"]:
                     to_exclude.append(id)
             
             """ ResourceTypes, OriginResources and SubordinateResources are checked only if the event
@@ -153,37 +152,24 @@ class RedfishEventHandler(EventHandlerInterface):
                     type = self.check_data_type(origin)
                 except ResourceNotFound as e:
                     raise ResourceNotFound(e.resource_id)
-                if type in subscribtions["ResourceTypes"]:
-                    to_forward.extend(subscribtions["ResourceTypes"][type])
-                if origin in subscribtions["OriginResources"]:
-                    to_forward.extend(subscribtions["OriginResources"][origin])
+                if type in subscriptions["ResourceTypes"]:
+                    to_forward.extend(subscriptions["ResourceTypes"][type])
+                if origin in subscriptions["OriginResources"]:
+                    to_forward.extend(subscriptions["OriginResources"][origin])
                 sub = self.check_subdirs(origin)
                 to_forward.extend(sub)
 
-            if prefix in subscribtions["RegistryPrefixes"]:
-                for id in subscribtions["RegistryPrefixes"][prefix]["to_send"]:
+            if prefix in subscriptions["RegistryPrefixes"]:
+                for id in subscriptions["RegistryPrefixes"][prefix]["to_send"]:
                     to_forward.append(id)
-            if messageId in subscribtions["MessageIds"]:
-                for id in subscribtions["MessageIds"][messageId]["to_send"]:
+            if messageId in subscriptions["MessageIds"]:
+                for id in subscriptions["MessageIds"][messageId]["to_send"]:
                     to_forward.append(id)
             
             set1 = set(to_forward)
             set2 = set(to_exclude)
             to_forward = list(set1 - set2)
-            
-            #MemberId
-            # if prefix in subscribtions["RegistryPrefixes"]:
-            #     for id in subscribtions["RegistryPrefixes"][prefix]["to_send"]:
-            #             if messageId not in subscribtions["MessageIds"] or messageId in subscribtions["MessageIds"] and not id in subscribtions["MessageIds"][messageId]["exclude"]:
-            #                 to_forward.append(id)
-            # if prefix in subscribtions["MessageIds"]:
-            #     for id in subscribtions["MessageIds"][payload["MessageId"]]:
-            #             for x in subscribtions["RegistryPrefixes"][prefix]:
-            #                 if x not in subscribtions["RegistryPrefixes"][prefix]["exclude"]:
-            #                     to_forward.append(id)
-        
-            ## parameter of forward_event is a set with no duplicates 
-            # return self.forward_event(list(set(to_forward)), payload)
+
             return self.forward_event(to_forward, payload)
         
     def check_data_type(self, origin):
@@ -230,13 +216,13 @@ class RedfishEventHandler(EventHandlerInterface):
         return list
 
     def check_subdirs(self, origin):
-        keylist = list(subscribtions["OriginResources"].keys())
+        keylist = list(subscriptions["OriginResources"].keys())
         to_forward = []
         for el in keylist:
             if '/*' in el:
                 base_origin = el.replace("/*", "")
                 if base_origin in origin:
-                        for id in subscribtions["OriginResources"][el]:
+                        for id in subscriptions["OriginResources"][el]:
                             to_forward.append(id)
         
         return to_forward
@@ -339,7 +325,6 @@ class RedfishEventHandler(EventHandlerInterface):
             raise PropertyNotFound(f"missing @odata.id in \n {json.dumps(redfish_obj, indent=2)}")
 
         file_path = os.path.join(self.conf['redfish_root'], obj_path)
-        #file_path = create_path(constants.PATHS['Root'], obj_path)
 
         if 'Collection' not in redfish_obj['@odata.type']:
             try:
@@ -354,13 +339,29 @@ class RedfishEventHandler(EventHandlerInterface):
             logger.debug("This is a collection")
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
-    if "Oem" not in redfish_obj:
-        redfish_obj["Oem"] = {}
-    if "Sunfish_RM" not in redfish_obj["Oem"]:
-        oem = {
-            "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
-            "ManagingAgent": {
-                "@odata.id": aggregation_source["@odata.id"]
-            }
+    oem = {
+        "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
+        "ManagingAgent": {
+            "@odata.id": aggregation_source["@odata.id"]
         }
+    }
+    if "Oem" not in redfish_obj:
+        redfish_obj["Oem"] = {"Sunfish_RM": oem}
+    elif "Sunfish_RM" not in redfish_obj["Oem"]:
         redfish_obj["Oem"]["Sunfish_RM"] = oem
+    else:
+        if "ManagingAgent" in redfish_obj["Oem"]["Sunfish_RM"]:
+            # We should not be here because the object we are just visiting while adding the agent should not have a
+            # managing agent reference in its fields. The one reason why we end-up here could be
+            # that the agent has populated a field that it is none of its business.
+            # What we are going to do for the time being is to rewrite the field with the current agent and generate a
+            # warning for the user.
+            # TODO: In the future we might want to check whether this is happening because the agent had failed and it
+            #       is restarting under a new identity. Still, the agent should not have any business with this specific
+            #       field because it is only generated and handled by sunfish.
+            logger.warning(f"""The object {redfish_obj["@odata.id"]} returned while registering agent {aggregation_source["@odata.id"]} contains already a managing agent ({redfish_obj['Oem']['Sunfish_RM']['ManagingAgent']['@odata.id']}) 
+                           and this should not be happening""")
+
+        redfish_obj["Oem"]["Sunfish_RM"]["ManagingAgent"] = {
+            "@odata.id": aggregation_source["@odata.id"]
+        }

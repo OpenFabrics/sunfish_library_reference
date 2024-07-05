@@ -4,6 +4,8 @@
 
 import json
 import os
+import string
+
 from sunfish.events.subscription_handler_interface import SubscriptionHandlerInterface
 from sunfish.lib.exceptions import *
 
@@ -14,7 +16,7 @@ from sunfish.lib.exceptions import *
 ## Heartbeat events
 ## IncludeOriginOfCondition
 
-subscribtions = {
+subscriptions = {
     "RegistryPrefixes": {
         # "RegistryPrefix": {
         # "to_send": [ ],
@@ -83,40 +85,40 @@ class RedfishSubscriptionHandler(SubscriptionHandlerInterface):
 
         if "RegistryPrefixes" in payload:
             for prefix in payload["RegistryPrefixes"]:
-                if prefix in subscribtions["RegistryPrefixes"]:
-                    subscribtions["RegistryPrefixes"][prefix]["to_send"].append(payload["Id"])
+                if prefix in subscriptions["RegistryPrefixes"]:
+                    subscriptions["RegistryPrefixes"][prefix]["to_send"].append(payload["Id"])
                 else:
-                    subscribtions["RegistryPrefixes"][prefix] = {
+                    subscriptions["RegistryPrefixes"][prefix] = {
                         "to_send": [payload["Id"]],
                         "exclude": []
                     }
 
         if "ExcludeRegistryPrefixes" in payload:
             for exclude_prefix in payload["ExcludeRegistryPrefixes"]:
-                if exclude_prefix in subscribtions["RegistryPrefixes"]:
-                    subscribtions["RegistryPrefixes"][exclude_prefix]["exclude"].append(payload["Id"])
+                if exclude_prefix in subscriptions["RegistryPrefixes"]:
+                    subscriptions["RegistryPrefixes"][exclude_prefix]["exclude"].append(payload["Id"])
                 else:
-                    subscribtions["RegistryPrefixes"][exclude_prefix] = {
+                    subscriptions["RegistryPrefixes"][exclude_prefix] = {
                         "to_send": [],
                         "exclude": [payload["Id"]]
                     }
 
         if "MessageIds" in payload:
             for msgId in payload["MessageIds"]:
-                if msgId in subscribtions["MessageIds"]:
-                    subscribtions["MessageIds"][msgId]["to_send"].append(payload["Id"])
+                if msgId in subscriptions["MessageIds"]:
+                    subscriptions["MessageIds"][msgId]["to_send"].append(payload["Id"])
                 else:
-                    subscribtions["MessageIds"][msgId] = {
+                    subscriptions["MessageIds"][msgId] = {
                         "to_send": [payload["Id"]],
                         "exclude": []
                     }
 
         if "ExcludeMessageIds" in payload:
             for exclude_msgId in payload["ExcludeMessageIds"]:
-                if exclude_msgId in subscribtions["MessageIds"]:
-                    subscribtions["MessageIds"][exclude_msgId]["exclude"].append(payload["Id"])
+                if exclude_msgId in subscriptions["MessageIds"]:
+                    subscriptions["MessageIds"][exclude_msgId]["exclude"].append(payload["Id"])
                 else:
-                    subscribtions["MessageIds"][exclude_msgId] = {
+                    subscriptions["MessageIds"][exclude_msgId] = {
                         "to_send": [],
                         "exclude": [payload["Id"]]
                     }
@@ -126,17 +128,17 @@ class RedfishSubscriptionHandler(SubscriptionHandlerInterface):
                 origin = prefix["@odata.id"]
                 if "SubordinateResources" in payload and payload["SubordinateResources"]:
                     origin = os.path.join(origin, '*')
-                if origin in subscribtions["OriginResources"]:
-                    subscribtions["OriginResources"][origin].append(payload["Id"])
+                if origin in subscriptions["OriginResources"]:
+                    subscriptions["OriginResources"][origin].append(payload["Id"])
                 else:
-                    subscribtions["OriginResources"][origin] = [payload["Id"]]
+                    subscriptions["OriginResources"][origin] = [payload["Id"]]
 
         if "ResourceTypes" in payload:
             for type in payload["ResourceTypes"]:
-                if type in subscribtions["ResourceTypes"]:
-                    subscribtions["ResourceTypes"][type].append(payload["Id"])
+                if type in subscriptions["ResourceTypes"]:
+                    subscriptions["ResourceTypes"][type].append(payload["Id"])
                 else:
-                    subscribtions["ResourceTypes"][type] = [payload["Id"]]
+                    subscriptions["ResourceTypes"][type] = [payload["Id"]]
         return
 
     def validate_subscription(self, payload: dict):
@@ -168,30 +170,20 @@ class RedfishSubscriptionHandler(SubscriptionHandlerInterface):
 
     # Deletes from the subscriptions data structure the ID of the subs deleted
     def delete_subscription(self, id):
-        for prefix in subscribtions["OriginResources"]:
-            list = []
-            list = subscribtions["OriginResources"][prefix]
-            if id in list:
-                subscribtions["OriginResources"][prefix].remove(id)
-        for prefix in subscribtions["ResourceTypes"]:
-            list = []
-            list = subscribtions["ResourceTypes"][prefix]
-            if id in list:
-                subscribtions["ResourceTypes"][prefix].remove(id)
-        for prefix in subscribtions["RegistryPrefixes"]:
-            list = []
-            list = subscribtions["RegistryPrefixes"][prefix]["to_send"]
-            if id in list:
-                subscribtions["RegistryPrefixes"][prefix]["to_send"].remove(id)
-            list = subscribtions["RegistryPrefixes"][prefix]["exclude"]
-            if id in list:
-                subscribtions["RegistryPrefixes"][prefix]["exclude"].remove(id)
-        for prefix in subscribtions["MessageIds"]:
-            list = []
-            list = subscribtions["MessageIds"][prefix]["to_send"]
-            if id in list:
-                subscribtions["MessageIds"][prefix]["to_send"].remove(id)
-            list = subscribtions["MessageIds"][prefix]["exclude"]
-            if id in list:
-                subscribtions["MessageIds"][prefix]["exclude"].remove(id)
+        for prefix in subscriptions["OriginResources"]:
+            if id in subscriptions["OriginResources"][prefix]:
+                subscriptions["OriginResources"][prefix].remove(id)
+        for prefix in subscriptions["ResourceTypes"]:
+            if id in subscriptions["ResourceTypes"][prefix]:
+                subscriptions["ResourceTypes"][prefix].remove(id)
+        for prefix in subscriptions["RegistryPrefixes"]:
+            if id in subscriptions["RegistryPrefixes"][prefix]["to_send"]:
+                subscriptions["RegistryPrefixes"][prefix]["to_send"].remove(id)
+            if id in subscriptions["RegistryPrefixes"][prefix]["exclude"]:
+                subscriptions["RegistryPrefixes"][prefix]["exclude"].remove(id)
+        for prefix in subscriptions["MessageIds"]:
+            if id in subscriptions["MessageIds"][prefix]["to_send"]:
+                subscriptions["MessageIds"][prefix]["to_send"].remove(id)
+            if id in subscriptions["MessageIds"][prefix]["exclude"]:
+                subscriptions["MessageIds"][prefix]["exclude"].remove(id)
         return

@@ -8,7 +8,7 @@ import os
 import shutil
 
 from sunfish.storage.backend_interface import BackendInterface
-from sunfish.storage import utils
+from sunfish_plugins.storage.file_system_backend import utils
 from sunfish.lib.exceptions import *
 
 logger = logging.getLogger(__name__)

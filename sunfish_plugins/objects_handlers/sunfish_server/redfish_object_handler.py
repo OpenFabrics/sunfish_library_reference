@@ -2,8 +2,12 @@
 # This software is available to you under a BSD 3-Clause License. 
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 import logging
+import string
+from typing import Optional
 
 import sunfish.lib.core
+from sunfish.lib.exceptions import AgentForwardingFailure
+from sunfish.lib.object_handler_interface import ObjectHandlerInterface
 from sunfish.models.types import *
 
 logger = logging.getLogger("RedfishObjectHandler")
@@ -25,15 +29,17 @@ class RedfishObjectHandlersTable:
             core.subscription_handler.delete_subscription(path)
 
 
-class RedfishObjectHandler:
+class RedfishObjectHandler(ObjectHandlerInterface):
     dispatch_table = {
         "ComputerSystem": RedfishObjectHandlersTable.ComputerSystem,
         "EventDestination": RedfishObjectHandlersTable.EventDestination
     }
-    @classmethod
-    def dispatch(cls, core: 'sunfish.lib.core.Core', object_type: str, path: str,
-                 operation: SunfishRequestType, payload: dict = None):
-        if object_type in cls.dispatch_table:
-            return cls.dispatch_table[object_type](core, path, operation, payload)
-        logger.debug(f"Object type '{object_type}' does not have a custom handler")
 
+    def __init__(self, core: 'sunfish.lib.core.Core'):
+        self.core = core
+
+    def dispatch(self, object_type: str, path: str,
+                 operation: SunfishRequestType, payload: dict = None):
+        if object_type in self.dispatch_table:
+            return self.dispatch_table[object_type](self.core, path, operation, payload)
+        logger.debug(f"Object type '{object_type}' does not have a custom handler")
