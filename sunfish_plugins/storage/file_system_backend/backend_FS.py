@@ -115,7 +115,7 @@ class BackendFS(BackendInterface):
 
             config = utils.generate_collection(collection_type)
 
-            # if the item to be written is managed by an agent, we want the collection containing it to also be maked
+            # if the item to be written is managed by an agent, we want the collection containing it to also be marked
             # accordingly. We do this only for collections to be created because we assume that if the collection is
             # there already:
             #  a. The collection is a first level one that is managed by Sunfish
