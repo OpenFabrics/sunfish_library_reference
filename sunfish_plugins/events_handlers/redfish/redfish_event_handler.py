@@ -5,6 +5,9 @@ import json
 import logging
 import os
 import warnings
+import shutil
+from uuid import uuid4
+
 
 import requests
 from sunfish.events.event_handler_interface import EventHandlerInterface
@@ -12,6 +15,7 @@ from sunfish.events.redfish_subscription_handler import subscriptions
 from sunfish.lib.exceptions import *
 
 logger = logging.getLogger("RedfishEventHandler")
+logging.basicConfig(level=logging.DEBUG)
 
 
 class RedfishEventHandlersTable:
@@ -21,8 +25,8 @@ class RedfishEventHandlersTable:
         # Fabric Agents are modelled as AggregationSource objects (RedFish v2023.1 at the time of writing this comment)
         # Registration will happen with the OFMF receiving a and event with MessageId: AggregationSourceDiscovered
         # The arguments of the event message are:
-        #   - Arg1: "Redfish"
-        #   - Arg2: "agent_ip:port"
+        #   - Arg0: "Redfish"
+        #   - Arg1: "agent_ip:port"
         # I am also assuming that the agent name to be used is contained in the OriginOfCondifiton field of the event as in the below example:
         # {
         #    "OriginOfCondition: [
@@ -98,10 +102,74 @@ class RedfishEventHandlersTable:
         event_handler.core.storage_backend.patch(id, aggregation_source)
 
 
+    @classmethod
+    def ClearResources(cls, event_handler: EventHandlerInterface, event: dict, context: str):
+        ###
+        # Receipt of this event will cause the core library to remove the entire Resources tree, and reload a clean initial tree
+        # This will happen upon the Core receiving an event with MessageId: ClearResources
+        # The arguments of the event message are:
+        #   - Arg0: "<relative path_to_clean_resource_directory>
+        # there is no protection on the receipt of this event
+		# This event will not work if the backend file system is not the host's filesystem!
+		#
+        logger.info("ClearResources method called")
+        resource_path = event['MessageArgs'][0]  # relative Resource Path
+        logger.info(f"ClearResources path is {resource_path}")
+        try:
+            if os.path.exists('Resources'):
+                shutil.rmtree('Resources')
+
+            shutil.copytree(resource_path, 'Resources')
+            resp = 204
+        except Exception:
+            raise Exception("ClearResources Failed")
+            resp = 500
+        return resp
+
+
+    @classmethod
+    def TriggerEvent(cls, event_handler: EventHandlerInterface, event: dict, context: str):
+        ###
+        # Receipt of this event will cause the core library to retrieve and send a specific event to a specific target
+        # This will happen upon the API receiving an event with MessageId: TriggerEvent
+        # The arguments of the event message are:
+        #   - Arg0: "EventDescriptor"  --relative OS Filesystem path from core library application home directory
+        #   - Arg1: "target_IP:port"
+        # there is no protection on the inadvertant receipt of this event
+		#
+        logger.info("TriggerEvent method called")
+        file_to_send = event['MessageArgs'][0]  # relative Resource Path
+        hostname = event['MessageArgs'][1]  # Agent address
+        initiator = event['OriginOfCondition']['@odata.id']
+        logger.info(f"file_to_send path is {file_to_send}")
+        try:
+            if os.path.exists('file_to_send'):
+                #shutil.rmtree('Resources')
+                print("found the event file")
+                # event_to_send = contents of file_to_send
+
+        # these lines are not yet correct!!
+        # send the event as a POST to the EventListener
+        #response = requests.post(f"{hostname}/EventListener",event_to_send)
+        #if response.status_code != 200:
+        #    raise Exception("Cannot find ConnectionMethod")
+        #response = response.json()
+
+            resp = 204
+        except Exception:
+            raise Exception("TriggerEvents Failed")
+            resp = 500
+        return resp
+
+
+
+
 class RedfishEventHandler(EventHandlerInterface):
     dispatch_table = {
         "AggregationSourceDiscovered": RedfishEventHandlersTable.AggregationSourceDiscovered,
-        "ResourceCreated": RedfishEventHandlersTable.ResourceCreated
+        "ResourceCreated": RedfishEventHandlersTable.ResourceCreated,
+        "TriggerEvent": RedfishEventHandlersTable.TriggerEvent,
+		"ClearResources" : RedfishEventHandlersTable.ClearResources
     }
 
     def __init__(self, core):
@@ -339,11 +407,13 @@ class RedfishEventHandler(EventHandlerInterface):
             logger.debug("This is a collection")
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
+    #  BoundaryComponent = ["true", "false", "unknown"]
     oem = {
         "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
         "ManagingAgent": {
             "@odata.id": aggregation_source["@odata.id"]
-        }
+        },
+        "BoundaryComponent": "unknown"
     }
     if "Oem" not in redfish_obj:
         redfish_obj["Oem"] = {"Sunfish_RM": oem}
@@ -362,6 +432,10 @@ def add_aggregation_source_reference(redfish_obj, aggregation_source):
             logger.warning(f"""The object {redfish_obj["@odata.id"]} returned while registering agent {aggregation_source["@odata.id"]} contains already a managing agent ({redfish_obj['Oem']['Sunfish_RM']['ManagingAgent']['@odata.id']}) 
                            and this should not be happening""")
 
+        # the expected case is there is no ManagingAgent before this event handler creates the object, for now even if the Agent has 
+        # set this value, we will over write.
         redfish_obj["Oem"]["Sunfish_RM"]["ManagingAgent"] = {
             "@odata.id": aggregation_source["@odata.id"]
         }
+        if "BoundaryComponent" not in redfish_obj["Oem"]["Sunfish_RM"]:
+                    redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"] = oem["BoundaryComponent"]
