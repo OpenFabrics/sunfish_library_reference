@@ -341,3 +341,32 @@ class BackendFS(BackendInterface):
                         to_replace = False
 
         return "DELETE: file removed."
+
+
+
+    def reset_resources(self, resource_path: str, clean_resource_path: str):
+        ###
+        # this command ONLY applies to the File System storage backend
+        # The arguments are:
+        #   - clean_resource_path: "<relative path to directory root containing the clean resource tree>"
+        #   - resource_path: "<relative path to the FS backend's Resources directory>"
+        # there is no protection on the receipt of this command
+		# This command will not work if the backend file system is not the host's filesystem!
+		#
+        logger.info("reset_resources method called")
+        logger.info(f"fs root resource path is {resource_path}")
+        logger.info(f"clean_resource path is {clean_resource_path}")
+        try:
+            if os.path.exists(resource_path) and os.path.exists(clean_resource_path):
+                shutil.rmtree(resource_path)
+                shutil.copytree(clean_resource_path, resource_path)
+                logger.debug("reset_resources complete")
+                resp = "OK", 204
+            else:
+                logger.debug("reset_resources: one or more paths do not exist.")
+                pass
+        except Exception:
+            raise Exception("reset_resources Failed")
+            resp = "Fail", 500
+        return resp
+
