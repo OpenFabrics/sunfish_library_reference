@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import uuid
 import warnings
 import shutil
 from uuid import uuid4
@@ -45,13 +46,16 @@ class RedfishEventHandlersTable:
         response = response.json()
 
         ### Save agent registration
-        connection_method_name = connectionMethodId.split('/')[-1]
-        connection_method_name = connectionMethodId[:-len(connection_method_name)]
-        event_handler.core.create_object(connection_method_name, response)
+        # connection_method_name = connectionMethodId.split('/')[-1]
+        # connection_method_name = connectionMethodId[:-len(connection_method_name)]
+        event_handler.core.storage_backend.write(response)
 
-        connection_method_template = {
+        aggregation_source_id = str(uuid.uuid4())
+        aggregation_source_template = {
             "@odata.type": "#AggregationSource.v1_2_.AggregationSource",
+            "@odata.id": f"{event_handler.core.conf['redfish_root']}/AggregationService/AggregationSources/{aggregation_source_id}",
             "HostName": hostname,
+            "Id": aggregation_source_id,
             "Links": {
                 "ConnectionMethod": {
                     "@odata.id": connectionMethodId
@@ -59,15 +63,11 @@ class RedfishEventHandlersTable:
                 "ResourcesAccessed": []
             }
         }
-
         try:
-            resp_post = event_handler.core.create_object(
-                os.path.join(event_handler.core.conf["redfish_root"], "AggregationService/AggregationSources"),
-                connection_method_template)
+            event_handler.core.storage_backend.write(aggregation_source_template)
         except Exception:
             raise Exception()
 
-        aggregation_source_id = resp_post['@odata.id']
         agent_subscription_context = {"Context": aggregation_source_id.split('/')[-1]}
 
         resp_patch = requests.patch(f"{hostname}/redfish/v1/EventService/Subscriptions/SunfishServer",
@@ -96,7 +96,13 @@ class RedfishEventHandlersTable:
 
         add_aggregation_source_reference(response, aggregation_source)
 
-        event_handler.core.create_object(id, response)
+        # here we are assuming that we are getting a fully populated redfish
+        # object from the agent.
+        if "@odata.id" not in response:
+            logger.warning(f"Resource {id} did not have @odata.id set when retrieved from Agent. Initializing its value with {id}")
+            response["odata.id"] = id
+
+        event_handler.core.storage_backend.write(response)
 
         RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
 
@@ -183,7 +189,6 @@ class RedfishEventHandler(EventHandlerInterface):
         self.redfish_root = core.conf["redfish_root"]
         self.fs_root = core.conf["backend_conf"]["fs_root"]
         self.subscribers_root = core.conf["backend_conf"]["subscribers_root"]
-        self.backend = core.storage_backend
     @classmethod
     def dispatch(cls, message_id: str, event_handler: EventHandlerInterface, event: dict, context: str):
         if message_id in cls.dispatch_table:
@@ -246,7 +251,7 @@ class RedfishEventHandler(EventHandlerInterface):
         resource = origin[length:]
         path = os.path.join(self.redfish_root, resource)
         try:
-            data = self.core.get_object(path)
+            data = self.core.storage_backend.read(path)
         except ResourceNotFound as e:
             raise ResourceNotFound(path) 
         type = data["@odata.type"].split('.')[0]
@@ -270,7 +275,7 @@ class RedfishEventHandler(EventHandlerInterface):
         for id in list:
             path = os.path.join(self.redfish_root, 'EventService', 'Subscriptions', id)
             try:
-                data = self.core.get_object(path)
+                data = self.core.storage_backend.read(path)
                 # print('send to: ', data["Id"])
                 resp = requests.post(data['Destination'], json=payload)
                 resp.raise_for_status()
