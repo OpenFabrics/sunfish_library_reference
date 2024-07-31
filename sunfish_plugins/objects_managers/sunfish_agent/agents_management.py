@@ -1,4 +1,5 @@
 # Copyright IBM Corp. 2024
+# Copyright Hewlett Packard Enterprise Development LP 2024
 # This software is available to you under a BSD 3-Clause License.
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 
@@ -42,7 +43,7 @@ class Agent:
         collection = sunfish_core.storage_backend.read(path)
 
         logger.debug(f"Checking if the object {path} is managed by an Agent")
-        if "Oem" in collection and "Sunfish_RM" in collection["Oem"]:
+        if "Oem" in collection and "Sunfish_RM" in collection["Oem"] and "ManagingAgent" in collection:
             agent = collection["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"]
             return Agent(sunfish_core, agent)
 
