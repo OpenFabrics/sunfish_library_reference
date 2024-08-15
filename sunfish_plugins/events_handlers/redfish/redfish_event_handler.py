@@ -108,32 +108,6 @@ class RedfishEventHandlersTable:
 
         event_handler.core.storage_backend.patch(id, aggregation_source)
 
-
-    @classmethod
-    def ClearResources(cls, event_handler: EventHandlerInterface, event: dict, context: str):
-        ###
-        # Receipt of this event will cause the core library to remove the entire Resources tree, and reload a clean initial tree
-        # This will happen upon the Core receiving an event with MessageId: ClearResources
-        # The arguments of the event message are:
-        #   - Arg0: "<relative path_to_clean_resource_directory>
-        # there is no protection on the receipt of this event
-		# This event will not work if the backend file system is not the host's filesystem!
-		#
-        logger.info("ClearResources method called")
-        resource_path = event['MessageArgs'][0]  # relative Resource Path
-        logger.info(f"ClearResources path is {resource_path}")
-        try:
-            if os.path.exists('Resources'):
-                shutil.rmtree('Resources')
-
-            shutil.copytree(resource_path, 'Resources')
-            resp = 204
-        except Exception:
-            raise Exception("ClearResources Failed")
-            resp = 500
-        return resp
-
-
     @classmethod
     def TriggerEvent(cls, event_handler: EventHandlerInterface, event: dict, context: str):
         ###
@@ -175,8 +149,7 @@ class RedfishEventHandler(EventHandlerInterface):
     dispatch_table = {
         "AggregationSourceDiscovered": RedfishEventHandlersTable.AggregationSourceDiscovered,
         "ResourceCreated": RedfishEventHandlersTable.ResourceCreated,
-        "TriggerEvent": RedfishEventHandlersTable.TriggerEvent,
-		"ClearResources" : RedfishEventHandlersTable.ClearResources
+        "TriggerEvent": RedfishEventHandlersTable.TriggerEvent
     }
 
     def __init__(self, core):
