@@ -95,7 +95,6 @@ class RedfishEventHandlersTable:
         response = response.json()
 
         add_aggregation_source_reference(response, aggregation_source)
-
         # here we are assuming that we are getting a fully populated redfish
         # object from the agent.
         if "@odata.id" not in response:
@@ -125,7 +124,6 @@ class RedfishEventHandlersTable:
         logger.info(f"file_to_send path is {file_to_send}")
         try:
             if os.path.exists('file_to_send'):
-                #shutil.rmtree('Resources')
                 print("found the event file")
                 # event_to_send = contents of file_to_send
 
