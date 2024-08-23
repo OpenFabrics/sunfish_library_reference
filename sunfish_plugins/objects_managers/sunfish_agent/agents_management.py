@@ -43,7 +43,7 @@ class Agent:
         collection = sunfish_core.storage_backend.read(path)
 
         logger.debug(f"Checking if the object {path} is managed by an Agent")
-        if "Oem" in collection and "Sunfish_RM" in collection["Oem"] and "ManagingAgent" in collection:
+        if "Oem" in collection and "Sunfish_RM" in collection["Oem"] and "ManagingAgent" in collection["Oem"]["Sunfish_RM"]:
             agent = collection["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"]
             return Agent(sunfish_core, agent)
 

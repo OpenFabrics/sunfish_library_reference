@@ -93,8 +93,10 @@ class RedfishEventHandlersTable:
         if response.status_code != 200:
             raise Exception("Cannot find ConnectionMethod")
         response = response.json()
+        print(f"new resource is \n")
+        print(json.dumps(response, indent=4))
 
-        add_aggregation_source_reference(response, aggregation_source)
+        # add_aggregation_source_reference(response, aggregation_source)
         # here we are assuming that we are getting a fully populated redfish
         # object from the agent.
         if "@odata.id" not in response:
@@ -103,7 +105,8 @@ class RedfishEventHandlersTable:
 
         #event_handler.core.storage_backend.write(response)
 
-        event_handler.core.create_object(id, response)
+        # shouldn't be writing the new object before 'inspecting it'
+        #event_handler.core.create_object(id, response)
 
         RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
 
@@ -290,12 +293,14 @@ class RedfishEventHandler(EventHandlerInterface):
             if type(obj) == dict:
                 for key,value in obj.items():
                     if key == '@odata.id':
+                        print(f"found URL to Redfish obj {value}")
                         RedfishEventHandler.handleEntryIfNotVisited(self, value, visited, queue)
-                    elif type(value) == list or type(value) == dict:
-                        handleNestedObject(self, value)
+                    elif key != "Sunfish_RM" and (type(value) == list or type(value) == dict):
+                        handleNestedObject(self, value) # need to ignore Sunfish_RM paths; they are wrong namespace
 
         while queue:
             queue = sorted(queue)
+            print(f"sorted queue:  \n{queue}")
             id = queue.pop(0)
             redfish_obj = RedfishEventHandler.fetchResourceAndTree(self, id, aggregation_source, visited, queue, fetched)
 
@@ -304,13 +309,14 @@ class RedfishEventHandler(EventHandlerInterface):
                 continue
 
             for key, val in redfish_obj.items():
-                if key == 'Links':
-                    if type(val)==dict or type(val)==list:
-                        handleNestedObject(self, val)
                 if key == '@odata.id':
                     RedfishEventHandler.handleEntryIfNotVisited(self, val, visited, queue)
+                    print(f"found URL to Redfish obj {val}")
                     pass
-                if type(val) == list or type(val) == dict:
+                #elif key == 'Links':
+                #    if type(val)==dict or type(val)==list:
+                #        handleNestedObject(self, val)
+                elif type(val) == list or type(val) == dict:
                     handleNestedObject(self, val)
         return visited
 
@@ -338,27 +344,31 @@ class RedfishEventHandler(EventHandlerInterface):
     def fetchResourceAndTree(self, id, aggregation_source, visited, queue, fetched): # if have no parent dirs
         path_nodes = id.split("/")
         need_parent_prefetch = False
+        print(f"fetchResourceAndTree path_nodes {path_nodes}")
         for node_position in range(4, len(path_nodes) - 1):
             redfish_path = f'/redfish/v1/{"/".join(path_nodes[3:node_position + 1])}'
             logger.info(f"Checking redfish path: {redfish_path}")
-            if redfish_path not in visited:
+            print(f"visit path {redfish_path} ?")
+            if redfish_path not in visited: # last path is always in visited queue!
                 need_parent_prefetch = True
                 logger.info(f"Inspect redfish path: {redfish_path}")
+                print(f"adding redfish path to queue: {redfish_path}")
                 queue.append(redfish_path)
                 visited.append(redfish_path)
         if need_parent_prefetch:  # requeue
             queue.append(id)
-        else:
+        else:  # all parent objects have been visited
             redfish_obj = RedfishEventHandler.fetchResource(self, id, aggregation_source)
             fetched.append(id)
             return redfish_obj
     
     def fetchResource(self, obj_id, aggregation_source):
+        # only called if all parent objects have been put in queue and thus already fetched from aggregation_source
         resource_endpoint = aggregation_source["HostName"] + obj_id
         logger.info(f"fetch: {resource_endpoint}")
         response = requests.get(resource_endpoint)
 
-        if response.status_code == 200:
+        if response.status_code == 200: # Agent must have returned this object
             redfish_obj = response.json()
 
             RedfishEventHandler.createInspectedObject(self,redfish_obj, aggregation_source)
@@ -375,6 +385,7 @@ class RedfishEventHandler(EventHandlerInterface):
         file_path = os.path.join(self.conf['redfish_root'], obj_path)
 
         if 'Collection' not in redfish_obj['@odata.type']:
+            #  re-write this to explicitly check for object's existence in Sunfish!
             try:
                 if self.get_object(file_path) == redfish_obj:
                     pass
@@ -382,6 +393,8 @@ class RedfishEventHandler(EventHandlerInterface):
                     warnings.warn('Resource state changed')
             except ResourceNotFound:
                 add_aggregation_source_reference(redfish_obj, aggregation_source)
+                # do we change the following to a simple FS write?
+                print(f"creating object: {file_path}")
                 self.create_object(file_path, redfish_obj)
         else:
             logger.debug("This is a collection")
