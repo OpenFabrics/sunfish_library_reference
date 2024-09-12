@@ -46,7 +46,6 @@ class BackendFS(BackendInterface):
         except FileNotFoundError as e:
             raise ResourceNotFound(resource)
 
-    '''
     def write(self, payload: dict):
         """Checks if the Collection exists for that resource and stores the resource in the correct position of the file system.
         It create the directory of the resource, creates the index.json file and updates the files linked with the new resource (Collection members or Resources list).
@@ -54,7 +53,7 @@ class BackendFS(BackendInterface):
         Args:
             payload (json): json representing the resource that should be stored.
 
-        Raisexs:
+        Raises:
             CollectionNotSupported: the storage of the collections is not supported.
             AlreadyExists: it is not possible to have duplicate resources with the same ID.
 
@@ -66,6 +65,7 @@ class BackendFS(BackendInterface):
         # get ID and collection from payload
         length = len(self.redfish_root)
         id = payload['@odata.id'][length:]  # id without redfish.root (es. /redfish/v1/)
+        parent_is_collection = True # default assumption
 
         print(f"BackendFS.write called on {id}")
         id = id.split('/')
@@ -76,7 +76,7 @@ class BackendFS(BackendInterface):
             if os.path.exists(to_check) is False:
                 print("path does not exist\n")
                 raise ActionNotAllowed()
-
+        '''
             with open(to_check, 'r') as data_json:
                 data = json.load(data_json)
                 data_json.close()
@@ -101,6 +101,8 @@ class BackendFS(BackendInterface):
                                     json.dump(data, data_json, indent=4, sort_keys=True)
                                     data_json.close()
 
+        '''
+        # we get here only if all grandparent objects exist
         last_element = len(id) - 1
         collection_type = id[last_element - 1]
         resource_id = id[last_element]
@@ -116,10 +118,15 @@ class BackendFS(BackendInterface):
                                        collection_type)  # collection_path  .../Resources/[folder], collection_type = [folder]
         parent_path = os.path.dirname(collection_path)  # parent path .../Resources
 
+        #pdb.set_trace()
         # check if the directory of the Collection already exists
         if not os.path.exists(collection_path):
+            # if parent directory doesn't exist, we assume it is a collection and create the collection
+            print(f"backendFS.write: making collection path directory")
             os.makedirs(collection_path)
 
+            # the following line assumes the path element name dictates the collection type
+            # it is more proper to examine the @odata.type property of the object being created!
             config = utils.generate_collection(collection_type)
 
             # if the item to be written is managed by an agent, we want the collection containing it to also be marked
@@ -147,175 +154,6 @@ class BackendFS(BackendInterface):
         else:
             # checks if there is already a resource with the same id
             index_path = os.path.join(collection_path, "index.json")
-            if utils.check_unique_id(index_path, payload['@odata.id']) is False:
-                raise AlreadyExists(payload['@odata.id'])
-
-        # creates folder of the element and write index.json (assuming that the payload is valid i dont use any kind of template to write index.json)
-        folder_id_path = os.path.join(collection_path, resource_id)  # .../Resources/[folder]/[id]
-
-        # creates the folder of the element
-        if not os.path.exists(folder_id_path):
-            os.mkdir(folder_id_path)
-            parent_path = os.path.join(*folder_id_path.split("/")[:-2])
-            parent_json = "/" + os.path.join(parent_path, "index.json")
-            root_path = os.path.join(os.getcwd(), self.root)
-            if not os.path.exists(parent_json) and parent_path != root_path[1:]:
-                logger.warning(
-                    "You should not be here, this is crating an entire path where multiple folders are not existing")
-
-
-
-        with open(os.path.join(folder_id_path, "index.json"), "w") as fd:
-            fd.write(json.dumps(payload, indent=4, sort_keys=True))
-            fd.close()
-
-        json_collection_path = os.path.join(collection_path, 'index.json')
-
-        # updates the collection with the new element created
-        if os.path.exists(json_collection_path):
-            utils.update_collections_json(path=json_collection_path, link=payload['@odata.id'])
-        else:
-            utils.generate_collection(collection_type)
-
-        # Events have to be handled in a different way. 
-        # To check if write() is called by an event subscription (EventDestination format) I check 'Destination' because
-        # it is the only required required property that other objects doesnt have
-
-        logging.info('BackendFS: [POST] success')
-        return payload
-
-    '''
-    def write(self, payload: dict):
-        """
-        Checks if the Collection exists for that resource and stores the resource in the correct position of the file system.
-        It create the directory of the resource, creates the index.json file and updates the files linked with the new resource (Collection members or Resources list).
-
-        Args:
-            payload (json): json representing the resource that should be stored.
-
-        Raises:
-            CollectionNotSupported: the storage of the collections is not supported.
-            AlreadyExists: it is not possible to have duplicate resources with the same ID.
-
-        Returns:
-            json: stored data
-        """
-        logging.info('new_BackendFS write called')
-
-        # get ID and collection from payload
-        length = len(self.redfish_root)
-        redfishId = payload['@odata.id'][length:]  # id without redfish.root (es. /redfish/v1/)
-        parent_is_collection = True # default assumption
-
-        print(f"BackendFS.write called on {redfishId}")
-        id = redfishId.split('/')
-        print(f"BackendFS.write split id == {id}")
-        #pdb.set_trace()
-        for index in range(2, len(id[1:])):
-            to_check = os.path.join('/'.join(id[:index]), 'index.json')
-            to_check = os.path.join(os.getcwd(), self.root, to_check)
-            print(f"BackendFS.write():  path to check: {to_check}")
-            if os.path.exists(to_check) is False:
-                print("intermediate path above the parent object does not exist\n")
-                raise ActionNotAllowed()
-
-            '''
-            with open(to_check, 'r') as data_json:
-                data = json.load(data_json)
-                data_json.close()
-                if 'Collection' in data["@odata.type"]:
-                    print("path is to a Collection\n")
-                    members = data["Members"]
-                    for x in members:
-                        if x["@odata.id"] == os.path.join(self.redfish_root, '/'.join(id[:index + 1])):
-                            present = True
-                else:
-                    print("path is to assumed list object")
-                    if data[id[index]]:
-                        element = data[id[index]]
-                        print(f"element {id} found is {element}")
-                        if type(element) is not list:
-                            continue
-                        for el in element:
-                            if el["@odata.id"] == os.path.join(self.redfish_root, '/'.join(id[:index + 1])):
-                                present = True
-                            else:
-                                el["@odata.id"] = os.path.join(self.redfish_root, '/'.join(id[:index + 1]))
-                                print(f"BackendFS.write of {el['@odata.id']}")
-                                with open(to_check, 'w') as data_json:
-                                    json.dump(data, data_json, indent=4, sort_keys=True)
-                                    data_json.close()
-                    else:
-                        print("no element found???")
-            '''
-
-        # we get here if all paths through grandparent object already exist
-        last_element = len(id) - 1  
-        collection_type = id[last_element - 1]  # path element for parent object   
-        resource_id = id[last_element]   # actual redfish object to create
-        full_collection = ''
-        # find the path of the parent object which is should NOT be assumed to be a 'Collection'
-        if len(id) > 2:
-            for i in range(0, last_element - 1):
-                full_collection = full_collection + id[i] + '/'
-                print(f"backendFS.write: building full_collection:  {full_collection}")
-
-        collection_type = os.path.join(full_collection, collection_type)
-
-        collection_path = os.path.join(os.getcwd(), self.root,
-                                       collection_type)  
-        print(f"backendFS.write: collection_path is {collection_path}")
-        parent_path = os.path.dirname(collection_path)  
-        print(f"backendFS.write: parent_path is {parent_path}")
-
-        # check if the directory of the parent object already exists
-        pdb.set_trace()
-        if not os.path.exists(collection_path):
-            # if parent directory doesn't exist, we assume it is a collection and create the collection
-            print(f"backendFS.write: making collection path directory")
-            os.makedirs(collection_path)
-
-            # the following line assumes the path element name dictates the collection type
-            # it is more proper to examine the @odata.type property of the object being created!
-            config = utils.generate_collection(collection_type)
-
-            # if the item to be written is managed by an agent, we want the collection containing it to also be marked
-            # accordingly. We do this only for collections to be created because we assume that if the collection is
-            # there already:
-            #  a. The collection is a first level one that is managed by Sunfish
-            #  b. The collection was previously created during an agent discovery process and therefore already marked
-            # if "Oem" in payload and "Sunfish_RM" in payload["Oem"] and len(id) > 2 :
-            #     if "Oem" not in config:
-            #         config["Oem"] = {}
-            #     config["Oem"]["Sunfish_RM"] = payload["Oem"]["Sunfish_RM"]
-
-            ## write file Resources/[folder]/index.json for the newly created Collection object
-            with open(os.path.join(collection_path, "index.json"), "w") as fd:
-                print(f"backendFS.write: writing collection path object\n {json.dumps(config, indent=4)}")
-                fd.write(json.dumps(config, indent=4, sort_keys=True))
-                fd.close()
-
-            # check if the index.json representing the parent collection exists. In case it doesnt it will create index.json with the collection template
-            if os.path.exists(os.path.join(parent_path, "index.json")):
-                with open(os.path.join(parent_path, "index.json"), 'r') as parent_json:
-                    parent_data = json.load(parent_json)
-                    parent_json.close()
-                if 'Collection' in parent_data["@odata.type"]:
-                    print("parent path is to a Collection\n")
-                    print(f"members = {data['Members']}")
-                    pass
-
-                collection_name = collection_type.split('/')[-1]
-                print(f"backendFS.write: updating parent collection at {os.path.join(parent_path, 'index.json')}")
-                utils.update_collections_parent_json(path=os.path.join(parent_path, "index.json"), type=collection_name,
-                                                     link=self.redfish_root + collection_type)
-            else:
-                # no parent collection, so we will make it up!
-                utils.generate_collection(collection_type)
-        else:
-            # parent object already exists, is it a Collection?
-            # checks if there is already a resource with the same id
-            index_path = os.path.join(collection_path, "index.json")
             with open(index_path, 'r') as data_json:
                 parent_data = json.load(data_json)
                 data_json.close()
@@ -329,6 +167,8 @@ class BackendFS(BackendInterface):
                 parent_is_collection = False  #
                 pass
 
+
+
         # creates folder of the element and write index.json (assuming that the payload is valid i dont use any kind of template to write index.json)
         folder_id_path = os.path.join(collection_path, resource_id)  # .../Resources/[folder]/[resource_id]
 
@@ -341,11 +181,11 @@ class BackendFS(BackendInterface):
             root_path = os.path.join(os.getcwd(), self.root)
             if not os.path.exists(parent_json) and parent_path != root_path[1:]:
                 logger.warning(
-                    "You should not be here, this is crating an entire path where multiple folders are not existing")
+                    "You should not be here, this is creating an entire path with multiple missing grandparents")
 
 
 
-        print(f"backend_FS.write:  writing {folder_id_path}/index.json")
+        logger.info(f"backend_FS.write:  writing {folder_id_path}/index.json")
         with open(os.path.join(folder_id_path, "index.json"), "w") as fd:
             fd.write(json.dumps(payload, indent=4, sort_keys=True))
             fd.close()

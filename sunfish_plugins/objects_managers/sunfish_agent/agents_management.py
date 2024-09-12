@@ -4,6 +4,7 @@
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 
 import json
+import os
 import logging
 import string
 import requests
@@ -36,21 +37,34 @@ class Agent:
     def is_agent_managed(cls, sunfish_core: 'sunfish.lib.core.Core', path: string):
         # if this is a top level resource, there's no need to check for the agent as no agent can own top level ones.
         # Example of top levels is Systems, Chassis, etc...
-        level = len(path.replace(sunfish_core.conf["redfish_root"], "").split("/"))
+        path_to_owner = (path.replace(sunfish_core.conf["redfish_root"], "").split("/"))
+        level = len(path_to_owner)
         if level == 1:
             return None
 
+        # path passed in is to parent object, which is usually a collection
         collection = sunfish_core.storage_backend.read(path)
+        if 'Collection' in collection["@odata.type"]:
+            print(f"parent obj {path} is a Collection.")
+            new_path = os.path.join('/'.join(path_to_owner[:-1]))
+            print(f"grandparent obj at {new_path}")
+            collection = sunfish_core.storage_backend.read(new_path)
+            logger.debug(f"Checking if the object {new_path} is managed by an Agent")
+            if "Oem" in collection and "Sunfish_RM" in collection["Oem"] and "ManagingAgent" in collection["Oem"]["Sunfish_RM"]:
+                agent_path = collection["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"]
+                return Agent(sunfish_core, agent_path)
+        else:
+            #
+            logger.debug(f"Checking if the object {path} is managed by an Agent")
+            if "Oem" in collection and "Sunfish_RM" in collection["Oem"] and "ManagingAgent" in collection["Oem"]["Sunfish_RM"]:
+                agent_path = collection["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"]
+                return Agent(sunfish_core, agent_path)
 
-        logger.debug(f"Checking if the object {path} is managed by an Agent")
-        if "Oem" in collection and "Sunfish_RM" in collection["Oem"] and "ManagingAgent" in collection["Oem"]["Sunfish_RM"]:
-            agent = collection["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"]
-            return Agent(sunfish_core, agent)
 
         return None
 
     def _forward_get_request(self, path: string) -> dict:
-        resource_uri = self.aggregation_source["HostName"] + "/" + path
+        resource_uri = str(self.aggregation_source["HostName"]) + "/" + path
 
         logger.debug(f"Forwarding resource GET request {resource_uri}")
         try:
@@ -68,7 +82,8 @@ class Agent:
             raise e
 
     def _forward_create_request(self, path: string, payload: dict) -> dict:
-        resource_uri = self.aggregation_source["HostName"] + "/" + path
+        resource_uri = str(self.aggregation_source["HostName"]) + "/" + path
+        #resource_uri = agent_uri+ "/" + path
 
         logger.debug(f"Forwarding resource CREATE request {resource_uri}")
         try:
@@ -86,7 +101,7 @@ class Agent:
             raise e
 
     def _forward_delete_request(self, path: string) -> dict:
-        resource_uri = self.aggregation_source["HostName"] + "/" + path
+        resource_uri = str(self.aggregation_source["HostName"]) + "/" + path
 
         logger.debug(f"Forwarding resource DELETE request {resource_uri}")
         try:
@@ -102,7 +117,7 @@ class Agent:
             raise e
 
     def _forward_patch_request(self, path: string, payload: dict) -> dict:
-        resource_uri = self.aggregation_source["HostName"] + "/" + path
+        resource_uri = str(self.aggregation_source["HostName"]) + "/" + path
 
         logger.debug(f"Forwarding resource PATCH request {resource_uri}")
         try:
@@ -122,7 +137,7 @@ class Agent:
             raise e
 
     def _forward_replace_request(self, path: string, payload: dict) -> dict:
-        resource_uri = self.aggregation_source["HostName"] + "/" + path
+        resource_uri = str(self.aggregation_source["HostName"]) + "/" + path
 
         logger.debug(f"Forwarding resource REPLACE request {resource_uri}")
         try:
@@ -159,6 +174,8 @@ class Agent:
                 if payload is None:
                     logger.error("CREATE request payload missing")
                     raise AgentForwardingFailure("CREATE", -1, "Missing payload")
+                #return self._forward_create_request(path, payload)
+                #return agents_management._forward_create_request(path, payload)
                 return self._forward_create_request(path, payload)
             elif request == SunfishRequestType.DELETE:
                 return self._forward_delete_request(path)

@@ -4,6 +4,7 @@
 import logging
 import string
 from typing import Optional
+import pdb
 
 import sunfish.lib.core
 from sunfish_plugins.objects_managers.sunfish_agent.agents_management import Agent
@@ -39,9 +40,12 @@ class SunfishAgentManager(ObjectManagerInterface):
             path_to_check = "".join(f"/{e}" for e in path_elems)
             # get the parent path
         logger.debug(f"Checking managing agent for path: {path_to_check}")
+        pdb.set_trace()
         agent = Agent.is_agent_managed(self.core, path_to_check)
         if agent:
             logger.debug(f"{path} is managed by an agent, forwarding the request")
+            #agent_json = sunfish_core.storage_backend.read(agent)
+            #agent_uri = agent_json["Hostname"]
             try:
                 agent_response = agent.forward_request(request_type, path, payload=payload)
             except AgentForwardingFailure as e:
