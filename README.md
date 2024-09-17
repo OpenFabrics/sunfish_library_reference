@@ -64,7 +64,7 @@ Plugins are based on python's namespaced packages and are required to be placed 
 Please note no setup.py or project.toml should be placed in any of the plugins folders, including the pre-defined folders (i.e., sunfish_plugins, storage, events_handlers, objects_handlers, objects_managers). Failing to do so will make the plugins impossible to be discovered. 
 
 
-When initializing the library, users can specify their implementation of their plugins as part of the sunfish configuration. See the below example. 
+When initializing the library, users can specify their implementation of their plugins as part of the sunfish configuration as described in the [Initialization](https://github.com/OpenFabrics/sunfish_library_reference?tab=readme-ov-file#usage) section.
 
 ```python
 sunfish_config = {
@@ -78,9 +78,12 @@ If no plugins are specified in the configuration, the Sunfish library will load 
 
 ## Usage
 
-When initializing the sunfish core library, users need to specify the **configuration parameters** as a dict  to be passed to the `init` function. The below snippet shows all the possible fields :
-```json
-{
+### Initialization
+When initializing the sunfish core library, users need to specify the **configuration parameters** as a dict  to be passed to the `init` function. The below snippet shows all the possible fields and how to initialize the library:
+```python
+from sunfish.lib.core import Core
+
+config = {
     "redfish_root": "/redfish/v1/",
     "handlers": {
         "subscription_handler": "redfish"
@@ -102,6 +105,8 @@ When initializing the sunfish core library, users need to specify the **configur
         "class_name": "SunfishAgentManager"
     }
 }
+
+sunfish_core = Core(config)
 ```
 
 Where:
@@ -120,6 +125,35 @@ Sunfish should be installed and imported in an existing Python project. To use i
 - these methods will raise the exception defined in `sunfish.lib.exceptions.py`
 
 **IMPORTANT:** this Library assumes that the .json object are legal and well-formed according to the Redfish specification.
+
+### Interacting with Sunfish
+
+The Sunfish library is meant to be integrated into another software such as a REST server or similar application providing external access to the library.
+Besides the the configuration described above, an application using this library interacts with Sunfish via the below API:
+
+```python
+#get an object from the Sunfish tree
+get_object(self, path: string)
+
+#create a new object in the Sunfish tree
+create_object(self, path: string, payload: dict)
+
+#fully replace an existing object 
+replace_object(self, path: str, payload: dict)
+
+#patch an existing object
+patch_object(self, path: str, payload: dict)
+
+#delete an existing object
+delete_object(self, path: string)
+
+#process a Redfish event
+handle_event(self, payload)
+```
+
+THe above API is exposed by the `Core` class. More details on the above api are available [here](https://github.com/OpenFabrics/sunfish_library_reference/blob/main/sunfish/lib/core.py).
+
+An example REST server, showing how to interact with the Sunfish library is available [here](https://github.com/OpenFabrics/sunfish_server_reference). 
 
 ## License and copyright attribution
 The code in this project is made available via the BSD 3-Clause License. See [LICENSE](https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE) to access the full license terms. This project adopts the Developer Certificate of Origin (DCO) to certify that each commit was written by the author, or that the author has the rights necessary to contribute the code. All commits must include a DCO which looks like this: Signed-off-by: Joe Smith <joe.smith@email.com>. Specifically, we utilize the [Developer Certificate of Origin Version 1.1] (https://github.com/OpenFabrics/sunfish_library_reference/blob/main/DCO). The project requires that the name used is your real name. Neither anonymous contributors nor those utilizing pseudonyms will be accepted.
