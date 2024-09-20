@@ -8,7 +8,7 @@ import os
 import warnings
 import shutil
 from uuid import uuid4
-
+import pdb
 
 import requests
 from sunfish.events.event_handler_interface import EventHandlerInterface
@@ -126,27 +126,76 @@ class RedfishEventHandlersTable:
 		#
         logger.info("TriggerEvent method called")
         file_to_send = event['MessageArgs'][0]  # relative Resource Path
-        hostname = event['MessageArgs'][1]  # Agent address
-        initiator = event['OriginOfCondition']['@odata.id']
-        logger.info(f"file_to_send path is {file_to_send}")
+        #file_path = os.path.join(self.conf['redfish_root'], file_to_send)
+        hostname = event['MessageArgs'][1]  # target address
+        destination = hostname + "/EventListener" # may match a Subscription object's 'Destination' property
+        logger.debug(f"path of file_to_send is {file_to_send}")
         try:
-            if os.path.exists('file_to_send'):
-                print("found the event file")
-                # event_to_send = contents of file_to_send
+            if os.path.exists(file_to_send):
+                with open(file_to_send, 'r') as data_json:
+                    event_to_send = json.load(data_json)
+                    data_json.close()
 
-        # these lines are not yet correct!!
-        # send the event as a POST to the EventListener
-        #response = requests.post(f"{hostname}/EventListener",event_to_send)
-        #if response.status_code != 200:
-        #    raise Exception("Cannot find ConnectionMethod")
-        #response = response.json()
+                logger.debug("found the event file")
 
-            resp = 204
+                if event_to_send["Context"] == "":
+                    logger.debug("no context in template event")
+                    # don't fill it in, send the NULL
+                    pass
+                elif event_to_send["Context"] == "None":
+                    logger.debug("template event uses subscriber assigned Context")
+                    # check if the Destination for this event is a registered subscriber
+                    # use as "Context" of this the event_to_send, or use NULL if not found
+                    event_to_send["Context"] = RedfishEventHandler.find_subscriber_context(destination)
+                    #event_to_send["Context"] = ""   #just fake it for now
+                    pass
+
+                logger.debug(f"event_to_send\n {event_to_send}" ) 
+                try:
+                    # send the event as a POST to the EventListener
+                    response = requests.post(destination,json=event_to_send)
+                    if response.status_code != 200:
+                        logger.debug(f"Destination returned code {response.status_code}")
+                        return response
+                    else: 
+                        logger.info(f"TriggerEvents Succeeded: code {response.status_code}")
+                        return response
+                except Exception:
+                    raise Exception(f"Event forwarding to destination {destination} failed.")
+                    response = 500
+                    return response
+
+            else:
+                logger.error(f"file not found: {file_to_send} ")
+                response = 404
+                return response
         except Exception:
             raise Exception("TriggerEvents Failed")
             resp = 500
-        return resp
+            return resp
 
+
+    def find_subscriber_context(destination):
+        # look up the subscriber's "Context" for the given event Destination
+        pdb.set_trace()
+        context = ""
+        try:
+            subscribers_list = event_handler.core.storage_backend.read(
+                    os.path.join(self.core.conf["redfish_root"],
+                    "EventService", "Subscriptions")
+                    )
+            print(f"subscribers: {subscribers}")
+            for member in subscribers_list['Members']:
+                print(f"checking {member}")
+                subscriber = event_handler.core.storage_backend.read(member["@odata.id"])
+                if subscriber['Destination'] == destination:
+                    context=subscriber['Context']
+                    logger.info(f"Found matching Destination in {member}")
+
+        except Exception:
+            logger.info(f"failed to find a matching Destination")
+
+        return context
 
 
 
@@ -479,6 +528,7 @@ class RedfishEventHandler(EventHandlerInterface):
                 add_aggregation_source_reference(redfish_obj, aggregation_source)
                 print(f"creating object: {file_path}")
                 RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
+    
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
     #  BoundaryComponent = ["true", "false", "unknown"]
@@ -513,3 +563,4 @@ def add_aggregation_source_reference(redfish_obj, aggregation_source):
         }
         if "BoundaryComponent" not in redfish_obj["Oem"]["Sunfish_RM"]:
                     redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"] = oem["BoundaryComponent"]
+

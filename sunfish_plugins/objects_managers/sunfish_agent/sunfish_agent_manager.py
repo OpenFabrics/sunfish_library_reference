@@ -40,7 +40,7 @@ class SunfishAgentManager(ObjectManagerInterface):
             path_to_check = "".join(f"/{e}" for e in path_elems)
             # get the parent path
         logger.debug(f"Checking managing agent for path: {path_to_check}")
-        pdb.set_trace()
+        #pdb.set_trace()
         agent = Agent.is_agent_managed(self.core, path_to_check)
         if agent:
             logger.debug(f"{path} is managed by an agent, forwarding the request")
