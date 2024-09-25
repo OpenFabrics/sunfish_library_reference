@@ -146,8 +146,7 @@ class RedfishEventHandlersTable:
                     logger.debug("template event uses subscriber assigned Context")
                     # check if the Destination for this event is a registered subscriber
                     # use as "Context" of this the event_to_send, or use NULL if not found
-                    event_to_send["Context"] = RedfishEventHandler.find_subscriber_context(destination)
-                    #event_to_send["Context"] = ""   #just fake it for now
+                    event_to_send["Context"] = RedfishEventHandler.find_subscriber_context(event_handler.core, destination)
                     pass
 
                 logger.debug(f"event_to_send\n {event_to_send}" ) 
@@ -175,29 +174,7 @@ class RedfishEventHandlersTable:
             return resp
 
 
-    def find_subscriber_context(destination):
-        # look up the subscriber's "Context" for the given event Destination
-        pdb.set_trace()
-        context = ""
-        try:
-            subscribers_list = event_handler.core.storage_backend.read(
-                    os.path.join(self.core.conf["redfish_root"],
-                    "EventService", "Subscriptions")
-                    )
-            print(f"subscribers: {subscribers}")
-            for member in subscribers_list['Members']:
-                print(f"checking {member}")
-                subscriber = event_handler.core.storage_backend.read(member["@odata.id"])
-                if subscriber['Destination'] == destination:
-                    context=subscriber['Context']
-                    logger.info(f"Found matching Destination in {member}")
-
-        except Exception:
-            logger.info(f"failed to find a matching Destination")
-
-        return context
-
-
+    
 
 class RedfishEventHandler(EventHandlerInterface):
     dispatch_table = {
@@ -328,6 +305,31 @@ class RedfishEventHandler(EventHandlerInterface):
                             to_forward.append(id)
         
         return to_forward
+
+    def find_subscriber_context(self, destination):
+        # look up the subscriber's "Context" for the given event Destination
+        pdb.set_trace()
+        context = ""
+        try:
+            #subscribers_list = event_handler.core.storage_backend.read(
+            #subscribers_list = self.core.storage_backend.read(
+            subscribers_list = self.storage_backend.read(
+                    os.path.join(self.conf["redfish_root"],
+                    "EventService", "Subscriptions")
+                    )
+            logger.debug(f"subscribers: {subscribers_list}")
+            for member in subscribers_list['Members']:
+                logger.debug(f"checking {member}")
+                subscriber = self.storage_backend.read(member["@odata.id"])
+                if subscriber['Destination'] == destination:
+                    context=subscriber['Context']
+                    logger.info(f"Found matching Destination in {member}")
+
+        except Exception:
+            logger.info(f"failed to find a matching Destination")
+
+        return context
+
 
     def bfsInspection(self, node, aggregation_source):
         queue = []
@@ -512,7 +514,8 @@ class RedfishEventHandler(EventHandlerInterface):
             logger.debug("This is a collection, ignore it until we need it")
             pass
         else:
-            if os.path.exists(file_path):
+            fs_full_path = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_root"], obj_path, 'index.json')
+            if os.path.exists(fs_full_path):
                 # check if existing Sunfish object is same as that being fetched from aggregation_source
                 # we have more work to do disambiguate duplicate names from different agents
                 # for now we will just check to be sure we are uploading an actual identical object
