@@ -78,6 +78,7 @@ class RedfishEventHandlersTable:
     @classmethod
     def ResourceCreated(cls, event_handler: EventHandlerInterface, event: dict, context: str):
         # incoming context (an aggregation_source ID) comes from event sender
+        pdb.set_trace()
         if context == "":
             raise PropertyNotFound("Missing agent context in ResourceCreated event")
 
@@ -86,15 +87,17 @@ class RedfishEventHandlersTable:
         id = event['OriginOfCondition']['@odata.id']  # ex:  /redfish/v1/Fabrics/CXL
         logger.info(f"aggregation_source's redfish URI: {id}")
         #  must have an aggregation_source object to assign as owner of new resource
-        aggregation_source = event_handler.core.storage_backend.read(
-            os.path.join(event_handler.core.conf["redfish_root"],
+        agg_src_path = os.path.join(os.getcwd(), event_handler.core.conf["backend_conf"]["fs_root"], 
             "AggregationService", "AggregationSources", context)
-        )
+        if os.path.exists(agg_src_path):
+            aggregation_source = event_handler.core.storage_backend.read(agg_src_path)
+        else:
+            raise PropertyNotFound("Cannot find aggregation source; file does not exist")
         hostname = aggregation_source["HostName"]
         response = requests.get(f"{hostname}/{id}")
 
         if response.status_code != 200:
-            raise Exception("Cannot find new resource at aggregation_source")
+            raise ResourceNotFound("Aggregation source read from Agent failed") 
         response = response.json()
         print(f"new resource is \n")
         print(json.dumps(response, indent=4))
@@ -110,9 +113,21 @@ class RedfishEventHandlersTable:
         #event_handler.core.storage_backend.write(response)
         #event_handler.core.create_object(id, response)
 
-        RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
+        # New resource should not exist in Sunfish inventory
+        length = len(event_handler.core.conf["redfish_root"])
+        resource = response["@odata.id"][length:]
+        fs_full_path = os.path.join(os.getcwd(), event_handler.core.conf["backend_conf"]["fs_root"], 
+                resource, 'index.json')
+        if not os.path.exists(fs_full_path):
+            RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
+        else:  # for now, we will not process the new resource
+            logger.error(f"resource to create {id} already exists.")
+            raise AlreadyExists(id)
+            
 
+        # patch the aggregation_source in storage with all the new resources found
         event_handler.core.storage_backend.patch(id, aggregation_source)
+        return 200
 
     @classmethod
     def TriggerEvent(cls, event_handler: EventHandlerInterface, event: dict, context: str):
@@ -130,6 +145,7 @@ class RedfishEventHandlersTable:
         hostname = event['MessageArgs'][1]  # target address
         destination = hostname + "/EventListener" # may match a Subscription object's 'Destination' property
         logger.debug(f"path of file_to_send is {file_to_send}")
+        pdb.set_trace()
         try:
             if os.path.exists(file_to_send):
                 with open(file_to_send, 'r') as data_json:
