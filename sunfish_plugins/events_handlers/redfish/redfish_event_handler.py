@@ -81,6 +81,13 @@ class RedfishEventHandlersTable:
         pdb.set_trace()
         if context == "":
             raise PropertyNotFound("Missing agent context in ResourceCreated event")
+        # put the global definition and initial loading of sunfishAliasDB dictionary here
+        # sunfishAliasDB contains renaming data, the alias xref array, the boundaryLink 
+        # data, and assorted flags that are used during upload renaming and final merge of 
+        # boundary components based on boundary links.
+
+        #
+        #
 
         logger.info("New resource created")
 
@@ -121,12 +128,19 @@ class RedfishEventHandlersTable:
         if not os.path.exists(fs_full_path):
             RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
         else:  # for now, we will not process the new resource
-            logger.error(f"resource to create {id} already exists.")
+            logger.error(f"resource to create: {id} already exists.")
+            # eventually we need to resolve the URI conflict by checking that the
+            # aggregation_source of the existing obj is the same aggregation_source 
+            # which just sent this CreateResource event, making this a duplicate attempt.
+            # if this is a different aggregation_source, we have a naming conflict 
+            # to handle inside the createInspectedObject() routine
             raise AlreadyExists(id)
             
 
-        # patch the aggregation_source in storage with all the new resources found
+        # patch the aggregation_source object in storage with all the new resources found
         event_handler.core.storage_backend.patch(id, aggregation_source)
+        # before we are done, we have to process all renamed paths from this aggregation_source.
+        # Need to call the updateUploadedObjectPaths() utility
         return 200
 
     @classmethod
@@ -208,6 +222,7 @@ class RedfishEventHandler(EventHandlerInterface):
         self.core = core
         self.redfish_root = core.conf["redfish_root"]
         self.fs_root = core.conf["backend_conf"]["fs_root"]
+        self.fs_SunfishPrivate = core.conf["backend_conf"]["fs_private"]
         self.subscribers_root = core.conf["backend_conf"]["subscribers_root"]
         self.backend = core.storage_backend
     @classmethod
@@ -495,8 +510,8 @@ class RedfishEventHandler(EventHandlerInterface):
         if response.status_code == 200: # Agent must have returned this object
             redfish_obj = response.json()
 
-            # now copy object into Sunfish inventory
-            RedfishEventHandler.createInspectedObject(self,redfish_obj, aggregation_source)
+            # now rename if necessary and copy object into Sunfish inventory
+            redfish_obj = RedfishEventHandler.createInspectedObject(self,redfish_obj, aggregation_source)
             if redfish_obj['@odata.id'] not in aggregation_source["Links"]["ResourcesAccessed"]:
                 aggregation_source["Links"]["ResourcesAccessed"].append(redfish_obj['@odata.id'])
             return redfish_obj
@@ -508,7 +523,7 @@ class RedfishEventHandler(EventHandlerInterface):
             raise PropertyNotFound(f"missing @odata.id in \n {json.dumps(redfish_obj, indent=2)}")
 
         file_path = os.path.join(self.conf['redfish_root'], obj_path)
-        logger.debug(f"try creating object: {file_path}")
+        logger.debug(f"try creating agent-named object: {file_path}")
 
         '''
         if 'Collection' not in redfish_obj['@odata.type']:
@@ -530,27 +545,128 @@ class RedfishEventHandler(EventHandlerInterface):
             logger.debug("This is a collection, ignore it until we need it")
             pass
         else:
+            # obj_path is the Agent-proposed path name, but we need to search for the Sunfish (aliased) name
+            # obj_path = isAgentURI_Aliased(self,obj_path,aggregation_source)
             fs_full_path = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_root"], obj_path, 'index.json')
             if os.path.exists(fs_full_path):
-                # check if existing Sunfish object is same as that being fetched from aggregation_source
-                # we have more work to do disambiguate duplicate names from different agents
-                # for now we will just check to be sure we are uploading an actual identical object
-                # (which shouldn't happen since we are adding in the Sunfish_RM details)
-                if self.get_object(file_path) == redfish_obj:
-                    warnings.warn('Duplicate Resource found, ignored')
-                    pass
-                elif self.get_object(file_path) != redfish_obj:
-                    warnings.warn('Resource state changed')
-                    # put object change checks and updates here
+                uploading_agent_uri= aggregation_source["@odata.id"]
+                existing_obj = self.get_object(file_path)
+                existing_agent_uri = existing_obj["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"]
+                print(f"managingAgent of Sunfish {obj_path} is {uploading_agent_uri}")
+                if existing_agent_uri == uploading_agent_uri:
+                    # we have a duplicate posting of the object from same agent
+                    # check if existing Sunfish object is same as that being fetched from aggregation_source
+                    # Need to ignore the Sunfish_RM structure in the compare
+                    # Thus, the following isn't completely correct
+                    # note we don't update the object (for now)
+                    if self.get_object(file_path) == redfish_obj:
+                        # (which shouldn't happen since we are adding in the Sunfish_RM details)
+                        warnings.warn('Duplicate Resource found, ignored')
+                        pass
+                    elif self.get_object(file_path) != redfish_obj:
+                        warnings.warn('Resource state changed')
+                        # put object change checks and updates here
+                else:
+                    # we may have a naming conflict between agents
+                    if redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"] != "foreign":
+                        # we have a simple name conflict
+                        # find new name, build xref
+                        redfish_obj = RedfishEventHandler.renameUploadedObject(self, redfish_obj, aggregation_source)
+                        # for now use original naming
+                        add_aggregation_source_reference(redfish_obj, aggregation_source)
+                        print(f"creating renamed object: {file_path}")
+                        RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
+                    else:
+                        # we have a placeholder or boundary link component to process
+                        # put in placeholder codes here
+                        print(f"Non-owned component {obj_path} uploaded, ignored")
+                        #add_aggregation_source_reference(redfish_obj, aggregation_source)
+                        #print(f"creating renamed object: {file_path}")
+                        #RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
+
+
 
             else:   # assume new object, create it and its parent collection if needed
                 add_aggregation_source_reference(redfish_obj, aggregation_source)
                 print(f"creating object: {file_path}")
                 RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
+
+        return redfish_obj
     
+    def renameUploadedObject(self,redfish_obj, aggregation_source):
+        # redfish_obj uses agent namespace
+        # aggregation_source is an object in the Sunfish namespace
+        try:
+            uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            if os.path.exists(uri_alias_file):
+                print(f"reading alias file {uri_alias_file}")
+                with open(uri_alias_file, 'r') as data_json:
+                    uri_aliasDB = json.load(data_json)
+                    data_json.close()
+                print(json.dumps(uri_aliasDB, indent = 4))
+            else:
+                print(f"alias file {uri_alias_file} not found")
+                raise Exception 
+
+        except:
+            raise Exception
+
+        print(json.dumps(redfish_obj, indent=2))
+        agentGiven_obj_path = redfish_obj['@odata.id']
+        agentGiven_segments = agentGiven_obj_path.split("/")
+        agentGiven_obj_name = agentGiven_segments[-1]
+        #agentGiven_tree_segments = os.path.relpath(redfish_obj['@odata.id'], self.conf['redfish_root']).split("/")
+        print(f"agentGiven tree: {agentGiven_segments}")
+        #agent_file_path = os.path.join(self.conf['redfish_root'], agent_obj_path, 'index.json')
+        owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
+        # generate a new path and object name 
+        logger.debug(f"renaming object: {agentGiven_obj_path}")
+        logger.debug(f"agent id: {owning_agent_id}")
+        sunfishGiven_obj_name = "Sunfish_"+owning_agent_id[:4]+"_"+agentGiven_obj_name
+        sunfishGiven_obj_path = "/"
+        for i in range(1,len(agentGiven_segments)-1):
+            print(agentGiven_segments[i])
+            sunfishGiven_obj_path=sunfishGiven_obj_path + agentGiven_segments[i]+"/"
+        sunfishGiven_obj_path=sunfishGiven_obj_path + sunfishGiven_obj_name
+        # need to check new name is also unused 
+        if sunfishGiven_obj_path in uri_aliasDB["Sunfish_xref_URIs"]["aliases"]:
+            # new name was still not unique, just brute force it!
+            temp_string = "Sunfish_"+owning_agent_id+"_"+agentGiven_obj_name
+            sunfishGiven_obj_path=sunfishGiven_obj_path.replace(sunfishGiven_obj_name,temp_string) 
+
+        #
+        print(sunfishGiven_obj_path)
+        redfish_obj['@odata.id'] = sunfishGiven_obj_path
+        if redfish_obj['Id'] == agentGiven_obj_name:
+            redfish_obj['Id'] = sunfishGiven_obj_name
+        print(json.dumps(redfish_obj, indent=2))
+        # now need to update aliasDB
+        new_alias = {}
+        new_alias[agentGiven_obj_path] = sunfishGiven_obj_path
+        if owning_agent_id not in uri_aliasDB["Agents_xref_URIs"]:
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id] = {}
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"] = []
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"].append(new_alias)
+            print(json.dumps(uri_aliasDB, indent=2))
+        else:
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"].append(new_alias)
+            print(json.dumps(uri_aliasDB, indent=2))
+
+        if sunfishGiven_obj_path not in uri_aliasDB["Sunfish_xref_URIs"]["aliases"]:
+            uri_aliasDB["Sunfish_xref_URIs"]["aliases"][sunfishGiven_obj_path] = []
+            uri_aliasDB["Sunfish_xref_URIs"]["aliases"][sunfishGiven_obj_path].append(agentGiven_obj_path)
+        else:
+            uri_aliasDB["Sunfish_xref_URIs"]["aliases"][sunfishGiven_obj_path].append(agentGiven_obj_path)
+
+        # now need to write aliasDB back to file
+        with open(uri_alias_file,'w') as data_json:
+            json.dump(uri_aliasDB, data_json, indent=4, sort_keys=True)
+            data_json.close()
+
+        return redfish_obj
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
-    #  BoundaryComponent = ["true", "false", "unknown"]
+    #  BoundaryComponent = ["owned", "foreign", "non-boundary","unknown"]
     oem = {
         "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
         "ManagingAgent": {
@@ -558,6 +674,7 @@ def add_aggregation_source_reference(redfish_obj, aggregation_source):
         },
         "BoundaryComponent": "unknown"
     }
+    print(f"checking Oem field of {json.dumps(redfish_obj, indent=4)}")
     if "Oem" not in redfish_obj:
         redfish_obj["Oem"] = {"Sunfish_RM": oem}
     elif "Sunfish_RM" not in redfish_obj["Oem"]:
