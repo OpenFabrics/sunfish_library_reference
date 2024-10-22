@@ -158,7 +158,7 @@ class BackendFS(BackendInterface):
                 parent_data = json.load(data_json)
                 data_json.close()
             if 'Collection' in parent_data["@odata.type"]:
-                print("path is to a Collection\n")
+                print("parent path is to a Collection\n")
                 if utils.check_unique_id(index_path, payload['@odata.id']) is False:
                     raise AlreadyExists(payload['@odata.id'])
                     pass

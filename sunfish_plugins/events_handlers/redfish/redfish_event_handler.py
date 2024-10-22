@@ -379,7 +379,7 @@ class RedfishEventHandler(EventHandlerInterface):
             if type(obj) == dict:
                 for key,value in obj.items():
                     if key == '@odata.id':
-                        print(f"found URL to Redfish obj {value}")
+                        print(f"found nested URL to Redfish obj {value}")
                         RedfishEventHandler.handleEntryIfNotVisited(self, value, visited, queue)
                     elif key != "Sunfish_RM" and (type(value) == list or type(value) == dict):
                         handleNestedObject(self, value) # need to ignore Sunfish_RM paths; they are wrong namespace
@@ -398,8 +398,8 @@ class RedfishEventHandler(EventHandlerInterface):
 
             for key, val in redfish_obj.items():
                 if key == '@odata.id':
-                    RedfishEventHandler.handleEntryIfNotVisited(self, val, visited, queue)
-                    print(f"found URL to Redfish obj {val}")
+                    #RedfishEventHandler.handleEntryIfNotVisited(self, val, visited, queue)
+                    print(f"ignored top-level @odata.id to Redfish obj {val}")
                     pass
                 #elif key == 'Links':
                 #    if type(val)==dict or type(val)==list:
@@ -485,17 +485,18 @@ class RedfishEventHandler(EventHandlerInterface):
         for node_position in range(4, len(path_nodes) - 1):
             redfish_path = f'/redfish/v1/{"/".join(path_nodes[3:node_position + 1])}'
             logger.info(f"Checking redfish path: {redfish_path}")
-            print(f"visit path {redfish_path} ?")
+            print(f"do we need to visit path {redfish_path} ?")
             if redfish_path not in visited:  
                 need_parent_prefetch = True
                 logger.info(f"Inspect redfish path: {redfish_path}")
-                print(f"adding redfish path to queue: {redfish_path}")
+                print(f"yes, adding redfish path to queue: {redfish_path}")
                 queue.append(redfish_path)
                 visited.append(redfish_path)
         if need_parent_prefetch:  # requeue this id and return 'None'
             queue.append(id)
         else:  # all grand-parent objects have been visited
             # go get this object from the aggregation_source
+            print(f"fetchResourceAndTree fetching object {id}")
             redfish_obj = RedfishEventHandler.fetchResource(self, id, aggregation_source)
             fetched.append(id)
             return redfish_obj
@@ -509,6 +510,7 @@ class RedfishEventHandler(EventHandlerInterface):
 
         if response.status_code == 200: # Agent must have returned this object
             redfish_obj = response.json()
+            print(f"successfully fetched {obj_id}")
 
             # now rename if necessary and copy object into Sunfish inventory
             redfish_obj = RedfishEventHandler.createInspectedObject(self,redfish_obj, aggregation_source)
@@ -545,9 +547,21 @@ class RedfishEventHandler(EventHandlerInterface):
             logger.debug("This is a collection, ignore it until we need it")
             pass
         else:
-            # obj_path is the Agent-proposed path name, but we need to search for the Sunfish (aliased) name
-            # obj_path = isAgentURI_Aliased(self,obj_path,aggregation_source)
+            # @odata.id is the Agent-proposed path name, but we need to search for the Sunfish (aliased) name
+            agent_redfish_URI = redfish_obj['@odata.id']
+            sunfish_aliased_URI = RedfishEventHandler.xlateToSunfishPath(self, agent_redfish_URI, aggregation_source)
+            # if Sunfish has aliased the object URI, we need to update the object before we write it!
+            if agent_redfish_URI != sunfish_aliased_URI:
+                redfish_obj['@odata.id'] = sunfish_aliased_URI
+                RedfishEventHandler.updateSunfishAliases(self, sunfish_aliased_URI, agent_redfish_URI, aggregation_source)
+                if redfish_obj['Id'] == agent_redfish_URI.split("/")[-1]:
+                    redfish_obj['Id'] = sunfish_aliased_URI.split("/")[-1]
+            print(f"xlated agent_redfish_URI is {sunfish_aliased_URI}")  
+            # use Sunfish (aliased) paths for conflict testing if it exists
+            obj_path = os.path.relpath(sunfish_aliased_URI, self.conf['redfish_root'])
             fs_full_path = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_root"], obj_path, 'index.json')
+            file_path = os.path.join(self.conf['redfish_root'], obj_path)
+
             if os.path.exists(fs_full_path):
                 uploading_agent_uri= aggregation_source["@odata.id"]
                 existing_obj = self.get_object(file_path)
@@ -593,9 +607,98 @@ class RedfishEventHandler(EventHandlerInterface):
 
         return redfish_obj
     
+    def xlateToSunfishPath(self,agent_path, aggregation_source):
+        # redfish_obj uses agent namespace
+        # aggregation_source is an object in the Sunfish namespace
+        # will eventually replace file read & load of aliasDB with aliasDB passed in as arg
+        try:
+            uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            if os.path.exists(uri_alias_file):
+                print(f"reading alias file {uri_alias_file}")
+                with open(uri_alias_file, 'r') as data_json:
+                    uri_aliasDB = json.load(data_json)
+                    data_json.close()
+                print(json.dumps(uri_aliasDB, indent = 4))
+            else:
+                print(f"alias file {uri_alias_file} not found")
+                raise Exception 
+
+        except:
+            raise Exception
+
+        print(f"xlate {agent_path} to Sunfish path")
+        agentGiven_segments = agent_path.split("/")
+        print(f"agentGiven tree: {agentGiven_segments}")
+        owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
+        logger.debug(f"agent id: {owning_agent_id}")
+        #  check if owning_agent has any aliases assigned
+        if owning_agent_id in uri_aliasDB["Agents_xref_URIs"]:
+            logger.debug(f"xlating Agent path : {agent_path}")
+            print(f"xlating Agent path : {agent_path}")
+            agentFinal_obj_path = ""
+            for i in range(1,len(agentGiven_segments)):
+                print(agentGiven_segments[i])
+                agentFinal_obj_path=agentFinal_obj_path +"/"+ agentGiven_segments[i]
+                print(f"agentFinal_obj_path is {agentFinal_obj_path}")
+                # test this path segment
+                print("test this path segment")
+                print( agentFinal_obj_path in uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"])
+                if agentFinal_obj_path in uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"]:
+                    # need to replace agent_path built to this point with sunfish alias
+                    print(f"found an alias for {agentFinal_obj_path}")
+                    sunfishAliasPath = uri_aliasDB["Agents_xref_URIs"][owning_agent_id] \
+                                    ["aliases"][agentFinal_obj_path]
+                    agentFinal_obj_path = sunfishAliasPath
+                    print(f"aliased path is {agentFinal_obj_path}")
+                # next segment
+            agent_path = agentFinal_obj_path
+        return agent_path
+
+
+    def updateSunfishAliases(self,sunfish_URI, agent_URI, aggregation_source):
+        try:
+            uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            if os.path.exists(uri_alias_file):
+                print(f"reading alias file {uri_alias_file}")
+                with open(uri_alias_file, 'r') as data_json:
+                    uri_aliasDB = json.load(data_json)
+                    data_json.close()
+                print(json.dumps(uri_aliasDB, indent = 4))
+            else:
+                print(f"alias file {uri_alias_file} not found")
+                raise Exception 
+
+        except:
+            raise Exception
+
+        owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
+        logger.debug(f"updating aliases for : {owning_agent_id}")
+        if owning_agent_id not in uri_aliasDB["Agents_xref_URIs"]:
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id] = {}
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"] = {}
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"][agent_URI]=sunfish_URI 
+            print(json.dumps(uri_aliasDB, indent=2))
+        else:
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"][agent_URI]=sunfish_URI 
+            print(json.dumps(uri_aliasDB, indent=2))
+
+        if sunfish_URI not in uri_aliasDB["Sunfish_xref_URIs"]["aliases"]:
+            uri_aliasDB["Sunfish_xref_URIs"]["aliases"][sunfish_URI] = []
+            uri_aliasDB["Sunfish_xref_URIs"]["aliases"][sunfish_URI].append(agent_URI)
+        else:
+            uri_aliasDB["Sunfish_xref_URIs"]["aliases"][sunfish_URI].append(agent_URI)
+
+        # now need to write aliasDB back to file
+        with open(uri_alias_file,'w') as data_json:
+            json.dump(uri_aliasDB, data_json, indent=4, sort_keys=True)
+            data_json.close()
+
+        return uri_aliasDB
+
     def renameUploadedObject(self,redfish_obj, aggregation_source):
         # redfish_obj uses agent namespace
         # aggregation_source is an object in the Sunfish namespace
+        # this routine ONLY renames the @Odata.id and "id"
         try:
             uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
             if os.path.exists(uri_alias_file):
@@ -641,15 +744,13 @@ class RedfishEventHandler(EventHandlerInterface):
             redfish_obj['Id'] = sunfishGiven_obj_name
         print(json.dumps(redfish_obj, indent=2))
         # now need to update aliasDB
-        new_alias = {}
-        new_alias[agentGiven_obj_path] = sunfishGiven_obj_path
         if owning_agent_id not in uri_aliasDB["Agents_xref_URIs"]:
             uri_aliasDB["Agents_xref_URIs"][owning_agent_id] = {}
-            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"] = []
-            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"].append(new_alias)
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"] = {}
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"][agentGiven_obj_path]=sunfishGiven_obj_path 
             print(json.dumps(uri_aliasDB, indent=2))
         else:
-            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"].append(new_alias)
+            uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"][agentGiven_obj_path]=sunfishGiven_obj_path 
             print(json.dumps(uri_aliasDB, indent=2))
 
         if sunfishGiven_obj_path not in uri_aliasDB["Sunfish_xref_URIs"]["aliases"]:
