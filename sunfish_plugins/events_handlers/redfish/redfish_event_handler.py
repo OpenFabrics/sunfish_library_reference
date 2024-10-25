@@ -342,8 +342,6 @@ class RedfishEventHandler(EventHandlerInterface):
         pdb.set_trace()
         context = ""
         try:
-            #subscribers_list = event_handler.core.storage_backend.read(
-            #subscribers_list = self.core.storage_backend.read(
             subscribers_list = self.storage_backend.read(
                     os.path.join(self.conf["redfish_root"],
                     "EventService", "Subscriptions")
@@ -412,6 +410,11 @@ class RedfishEventHandler(EventHandlerInterface):
         print(json.dumps(sorted(fetched),indent = 4))
         print("\n\nAgent did not return objects for the following URIs:\n")
         print(json.dumps(sorted(notfound),indent = 4))
+        
+        # now need to revisit all uploaded objects and update any links renamed after
+        # the uploaded object was written
+        RedfishEventHandler.updateAllAliasedLinks(self,aggregation_source)
+
         return visited  #why not the 'fetched' list?
 
     def create_uploaded_object(self, path: str, payload: dict):
@@ -543,20 +546,22 @@ class RedfishEventHandler(EventHandlerInterface):
         else:
             logger.debug("This is a collection")
         '''
+        agent_redfish_URI = redfish_obj['@odata.id']
+        sunfish_aliased_URI = RedfishEventHandler.xlateToSunfishPath(self, agent_redfish_URI, aggregation_source)
+        # @odata.id is the Agent-proposed path name, but we need to search for the Sunfish (aliased) name.
+        # becomes part of xlateToSunfishObj(self, agent_obj,aggregation_source) -> translated_agent_obj
+        # if Sunfish has aliased the object URI, we need to update the object before we write it!
+        if agent_redfish_URI != sunfish_aliased_URI:
+            redfish_obj['@odata.id'] = sunfish_aliased_URI
+            RedfishEventHandler.updateSunfishAliasDB(self, sunfish_aliased_URI, agent_redfish_URI, aggregation_source)
+            if 'Id' in redfish_obj:
+                if redfish_obj['Id'] == agent_redfish_URI.split("/")[-1]:
+                    redfish_obj['Id'] = sunfish_aliased_URI.split("/")[-1]
+        print(f"xlated agent_redfish_URI is {sunfish_aliased_URI}")  
         if 'Collection' in redfish_obj['@odata.type']:
             logger.debug("This is a collection, ignore it until we need it")
             pass
         else:
-            # @odata.id is the Agent-proposed path name, but we need to search for the Sunfish (aliased) name
-            agent_redfish_URI = redfish_obj['@odata.id']
-            sunfish_aliased_URI = RedfishEventHandler.xlateToSunfishPath(self, agent_redfish_URI, aggregation_source)
-            # if Sunfish has aliased the object URI, we need to update the object before we write it!
-            if agent_redfish_URI != sunfish_aliased_URI:
-                redfish_obj['@odata.id'] = sunfish_aliased_URI
-                RedfishEventHandler.updateSunfishAliases(self, sunfish_aliased_URI, agent_redfish_URI, aggregation_source)
-                if redfish_obj['Id'] == agent_redfish_URI.split("/")[-1]:
-                    redfish_obj['Id'] = sunfish_aliased_URI.split("/")[-1]
-            print(f"xlated agent_redfish_URI is {sunfish_aliased_URI}")  
             # use Sunfish (aliased) paths for conflict testing if it exists
             obj_path = os.path.relpath(sunfish_aliased_URI, self.conf['redfish_root'])
             fs_full_path = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_root"], obj_path, 'index.json')
@@ -589,11 +594,13 @@ class RedfishEventHandler(EventHandlerInterface):
                         # for now use original naming
                         add_aggregation_source_reference(redfish_obj, aggregation_source)
                         print(f"creating renamed object: {file_path}")
+                        logger.info(f"creating renamed object: {file_path}")
                         RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
                     else:
                         # we have a placeholder or boundary link component to process
                         # put in placeholder codes here
                         print(f"Non-owned component {obj_path} uploaded, ignored")
+                        logger.info(f"Non-owned component {obj_path} uploaded, ignored")
                         #add_aggregation_source_reference(redfish_obj, aggregation_source)
                         #print(f"creating renamed object: {file_path}")
                         #RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
@@ -654,8 +661,89 @@ class RedfishEventHandler(EventHandlerInterface):
             agent_path = agentFinal_obj_path
         return agent_path
 
+    def updateAllAliasedLinks(self,aggregation_source):
+        try:
+            uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            if os.path.exists(uri_alias_file):
+                with open(uri_alias_file, 'r') as data_json:
+                    uri_aliasDB = json.load(data_json)
+                    data_json.close()
+                print(json.dumps(uri_aliasDB, indent = 4))
+            else:
+                print(f"alias file {uri_alias_file} not found")
+                raise Exception 
 
-    def updateSunfishAliases(self,sunfish_URI, agent_URI, aggregation_source):
+        except:
+            raise Exception
+
+        
+        owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
+        logger.debug(f"updating all objects for : {owning_agent_id}")
+
+        agent_uploads=[]
+        # for every aggregation_source:
+        if owning_agent_id in uri_aliasDB['Agents_xref_URIs']:
+            # grab the k,v aliases structure and the list of URIs for owned objects
+            if 'aliases' in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]:
+                agent_aliases = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['aliases']
+                agent_uploads = aggregation_source["Links"]["ResourcesAccessed"] 
+
+            #  update all the objects
+            for upload_obj_URI in agent_uploads:
+                logger.info(f"updating links in obj: {upload_obj_URI}")
+                print(f"updating links in obj: {upload_obj_URI}")
+                RedfishEventHandler.updateObjectAliasedLinks(self, upload_obj_URI, agent_aliases)
+
+        return   
+
+    def updateObjectAliasedLinks(self, object_URI, agent_aliases):
+
+        def findNestedURIs(self, URI_to_match, URI_to_sub, obj, path_to_nested_URI):
+            #pdb.set_trace()
+            nestedPaths = []
+            if type(obj) == list:
+                i = 0;
+                for entry in obj:
+                    if type(entry) == list or type(entry) == dict:
+                        nestedPaths.extend( findNestedURIs(self, URI_to_match, URI_to_sub, entry, path_to_nested_URI+"["+str(i)+"]"))
+                    else:
+                        i=i+1
+            if type(obj) == dict:
+                for key,value in obj.items():
+                    if key == '@odata.id'and path_to_nested_URI != "":
+                        # check @odata.id: value for an alias
+                        if value == URI_to_match:
+                            print(f"---- alias found at {path_to_nested_URI}")
+                            print(f"---- modifying {value} to {URI_to_sub}")
+                            obj[key] = URI_to_sub
+                            nestedPaths.append(path_to_nested_URI)
+                    elif key != "Sunfish_RM" and (type(value) == list or type(value) == dict):
+                        nestedPaths.extend(findNestedURIs(self, URI_to_match, URI_to_sub, value, path_to_nested_URI+"["+key+"]" ))
+            return nestedPaths
+
+        try:
+            sunfish_obj = self.storage_backend.read( object_URI)
+            for agent_URI, sunfish_URI in agent_aliases.items():
+                # find all the references to the aliased agent_URI and replace it
+                path_to_nested_URI=""
+                aliasedNestedPaths= findNestedURIs(self, agent_URI, sunfish_URI, sunfish_obj, path_to_nested_URI )
+                for path in aliasedNestedPaths:
+                    print(f"---- replaced {agent_URI} with {sunfish_URI} at {path}")
+            if aliasedNestedPaths:
+                print(f"---- final updated object")
+                print(json.dumps(sunfish_obj, indent=2))
+                self.storage_backend.replace(sunfish_obj)
+                sunfish_obj = self.storage_backend.read( object_URI)
+                print(f"---- done with {object_URI}")
+                print(f"---- read check {object_URI}")
+                print(json.dumps(sunfish_obj, indent=2))
+
+
+
+        except:
+            logger.error(f"could not update links in object {object_URI}")
+
+    def updateSunfishAliasDB(self,sunfish_URI, agent_URI, aggregation_source):
         try:
             uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
             if os.path.exists(uri_alias_file):
