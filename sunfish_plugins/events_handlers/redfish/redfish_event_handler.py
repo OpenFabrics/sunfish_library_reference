@@ -127,14 +127,16 @@ class RedfishEventHandlersTable:
                 resource, 'index.json')
         if not os.path.exists(fs_full_path):
             RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
-        else:  # for now, we will not process the new resource
+        else:  # could be a second agent with naming conflicts
             logger.error(f"resource to create: {id} already exists.")
+            # let's run the inspection process on it 
+            RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
             # eventually we need to resolve the URI conflict by checking that the
             # aggregation_source of the existing obj is the same aggregation_source 
             # which just sent this CreateResource event, making this a duplicate attempt.
             # if this is a different aggregation_source, we have a naming conflict 
             # to handle inside the createInspectedObject() routine
-            raise AlreadyExists(id)
+            #raise AlreadyExists(id)
             
 
         # patch the aggregation_source object in storage with all the new resources found
@@ -592,12 +594,18 @@ class RedfishEventHandler(EventHandlerInterface):
                         # find new name, build xref
                         redfish_obj = RedfishEventHandler.renameUploadedObject(self, redfish_obj, aggregation_source)
                         add_aggregation_source_reference(redfish_obj, aggregation_source)
+                        # add_aggregation_source_reference will add "Sunfish_RM" dict to "Oem" dict
                         # here's where we check for a Fabric Object merge
                         merged_fabrics =RedfishEventHandler.updateIfMergedFabric(self,redfish_obj, existing_obj)
                         
                         print(f"creating renamed object: {file_path}")
                         logger.info(f"creating renamed object: {file_path}")
                         RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
+                        if merged_fabrics:
+                            # need to update original fabric object with the xref AFTER new obj created
+                            self.storage_backend.replace(existing_obj)
+                            print(f"----- updated (replaced) existing fabric object")
+
                     else:
                         # we have a placeholder or boundary link component to process
                         # put in placeholder codes here
@@ -715,7 +723,6 @@ class RedfishEventHandler(EventHandlerInterface):
                     if key == '@odata.id'and path_to_nested_URI != "":
                         # check @odata.id: value for an alias
                         if value == URI_to_match:
-                            print(f"---- alias found at {path_to_nested_URI}")
                             print(f"---- modifying {value} to {URI_to_sub}")
                             obj[key] = URI_to_sub
                             nestedPaths.append(path_to_nested_URI)
@@ -725,20 +732,21 @@ class RedfishEventHandler(EventHandlerInterface):
 
         try:
             sunfish_obj = self.storage_backend.read( object_URI)
+            aliasedNestedPaths=[]
+            obj_modified = False
             for agent_URI, sunfish_URI in agent_aliases.items():
                 # find all the references to the aliased agent_URI and replace it
                 path_to_nested_URI=""
                 aliasedNestedPaths= findNestedURIs(self, agent_URI, sunfish_URI, sunfish_obj, path_to_nested_URI )
+                if aliasedNestedPaths:
+                    obj_modified = True
                 for path in aliasedNestedPaths:
                     print(f"---- replaced {agent_URI} with {sunfish_URI} at {path}")
-            if aliasedNestedPaths:
+            print(f"---- aliasedNestedPaths is {aliasedNestedPaths}")
+            if obj_modified:
                 print(f"---- final updated object")
                 print(json.dumps(sunfish_obj, indent=2))
                 self.storage_backend.replace(sunfish_obj)
-                sunfish_obj = self.storage_backend.read( object_URI)
-                print(f"---- done with {object_URI}")
-                print(f"---- read check {object_URI}")
-                print(json.dumps(sunfish_obj, indent=2))
 
         except:
             logger.error(f"could not update links in object {object_URI}")
@@ -784,18 +792,18 @@ class RedfishEventHandler(EventHandlerInterface):
         return uri_aliasDB
 
     def updateIfMergedFabric(self,redfish_obj, sunfish_obj):
-        flag = False
+        did_a_merge = False
         obj_type = redfish_obj["@odata.type"].split('.')[0]
         obj_type = obj_type.replace("#","") # #Évent -> Event 
-        print(f"----- found name conflict on fabric {redfish_obj['@odata.id']}")
+        print(f"----- potential merged object {redfish_obj['@odata.id']}")
         if obj_type == "Fabric":
             print(f"----- object is fabric")
             if "UUID" in redfish_obj and "UUID" in sunfish_obj:
                 if redfish_obj['UUID'] == sunfish_obj['UUID']:
                     print(f"----- found merge fabric candidate")
-                    flag = True
-                    # (TODO) more checks 
-                    # (TODO) update both redfish_obj and sunfish_obj with Fabric xref in Sunfish_RM 
+                    did_a_merge = True
+                    # (TODO) more checks ?
+                    # update both redfish_obj and sunfish_obj with Fabric xref in Sunfish_RM 
                     new_obj_fabric_xref={"@odata.id":sunfish_obj["@odata.id"]}
                     existing_obj_fabric_xref={"@odata.id":redfish_obj["@odata.id"]}
                     if "MergedFabrics" in redfish_obj["Oem"]["Sunfish_RM"]:
@@ -805,12 +813,19 @@ class RedfishEventHandler(EventHandlerInterface):
                         redfish_obj["Oem"]["Sunfish_RM"]["MergedFabrics"].append(new_obj_fabric_xref)
                     print(f"redfish merged fabric object: {json.dumps(redfish_obj,indent=2)}")
 
+                    if "MergedFabrics" in sunfish_obj["Oem"]["Sunfish_RM"]:
+                        sunfish_obj["Oem"]["Sunfish_RM"]["MergedFabrics"].append(existing_obj_fabric_xref)
+                    else:
+                        sunfish_obj["Oem"]["Sunfish_RM"]["MergedFabrics"] = []
+                        sunfish_obj["Oem"]["Sunfish_RM"]["MergedFabrics"].append(existing_obj_fabric_xref)
+                    print(f"sunfish merged fabric object: {json.dumps(sunfish_obj,indent=2)}")
+
                 else:
                     print(f"----- not same fabrics")
                 
 
         
-        return flag
+        return did_a_merge
 
     def renameUploadedObject(self,redfish_obj, aggregation_source):
         # redfish_obj uses agent namespace
