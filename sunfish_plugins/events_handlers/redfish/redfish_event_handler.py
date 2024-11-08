@@ -416,6 +416,8 @@ class RedfishEventHandler(EventHandlerInterface):
         # now need to revisit all uploaded objects and update any links renamed after
         # the uploaded object was written
         RedfishEventHandler.updateAllAliasedLinks(self,aggregation_source)
+        # now we need to re-direct any boundary port link references
+        # RedfishEventHandler.updateAllRedirectLinks(self, aggregation_source)
 
         return visited  #why not the 'fetched' list?
 
@@ -522,7 +524,13 @@ class RedfishEventHandler(EventHandlerInterface):
             if redfish_obj['@odata.id'] not in aggregation_source["Links"]["ResourcesAccessed"]:
                 aggregation_source["Links"]["ResourcesAccessed"].append(redfish_obj['@odata.id'])
             return redfish_obj
-        
+        else: # Agent did not successfully return the obj_id sought
+            # we still need to check the link for an aliased parent segment
+            sunfish_aliased_URI = RedfishEventHandler.xlateToSunfishPath(self, obj_id, aggregation_source)
+            if obj_id != sunfish_aliased_URI:
+                RedfishEventHandler.updateSunfishAliasDB(self, sunfish_aliased_URI, obj_id, aggregation_source)
+
+
     def createInspectedObject(self,redfish_obj, aggregation_source):
         if '@odata.id' in redfish_obj:
             obj_path = os.path.relpath(redfish_obj['@odata.id'], self.conf['redfish_root'])
@@ -532,22 +540,6 @@ class RedfishEventHandler(EventHandlerInterface):
         file_path = os.path.join(self.conf['redfish_root'], obj_path)
         logger.debug(f"try creating agent-named object: {file_path}")
 
-        '''
-        if 'Collection' not in redfish_obj['@odata.type']:
-            #  re-write this to explicitly check for object's existence in Sunfish!
-            try:
-                if self.get_object(file_path) == redfish_obj:
-                    pass
-                elif self.get_object(file_path) != redfish_obj:
-                    warnings.warn('Resource state changed')
-            except ResourceNotFound:
-                add_aggregation_source_reference(redfish_obj, aggregation_source)
-                # do we change the following to a simple FS write?
-                print(f"creating object: {file_path}")
-                self.create_object(file_path, redfish_obj)
-        else:
-            logger.debug("This is a collection")
-        '''
         agent_redfish_URI = redfish_obj['@odata.id']
         sunfish_aliased_URI = RedfishEventHandler.xlateToSunfishPath(self, agent_redfish_URI, aggregation_source)
         # @odata.id is the Agent-proposed path name, but we need to search for the Sunfish (aliased) name.
@@ -598,6 +590,8 @@ class RedfishEventHandler(EventHandlerInterface):
                         # here's where we check for a Fabric Object merge
                         merged_fabrics =RedfishEventHandler.updateIfMergedFabric(self,redfish_obj, existing_obj)
                         
+                        if redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"] == "BoundaryPort":
+                            RedfishEventHandler.track_boundary_port(self, redfish_obj, aggregation_source)
                         print(f"creating renamed object: {file_path}")
                         logger.info(f"creating renamed object: {file_path}")
                         RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
@@ -620,6 +614,8 @@ class RedfishEventHandler(EventHandlerInterface):
             else:   # assume new object, create it and its parent collection if needed
                 add_aggregation_source_reference(redfish_obj, aggregation_source)
                 print(f"creating object: {file_path}")
+                if redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"] == "BoundaryPort":
+                    RedfishEventHandler.track_boundary_port(self, redfish_obj, aggregation_source)
                 RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
 
         return redfish_obj
@@ -691,7 +687,7 @@ class RedfishEventHandler(EventHandlerInterface):
         logger.debug(f"updating all objects for : {owning_agent_id}")
 
         agent_uploads=[]
-        # for every aggregation_source:
+        # for every aggregation_source with aliased links:
         if owning_agent_id in uri_aliasDB['Agents_xref_URIs']:
             # grab the k,v aliases structure and the list of URIs for owned objects
             if 'aliases' in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]:
@@ -898,14 +894,170 @@ class RedfishEventHandler(EventHandlerInterface):
 
         return redfish_obj
 
+
+    def match_boundary_port(self, searching_agent_id, searching_port_URI, URI_aliasDB):
+        
+        matching_port_URIs = []
+        searching_for = URI_aliasDB['Agents_xref_URIs'][searching_agent_id]\
+                ['boundaryPorts'][searching_port_URI]
+
+        if "RemoteLinkPartnerId" in searching_for:
+            searching_for_remote_partnerId =searching_for["RemoteLinkPartnerId"]
+        else:
+            searching_for_remote_partnerId = 'No remote partnerId' # do NOT use 'None' or ""
+        if "RemotePortId" in searching_for:
+            searching_for_remote_portId =searching_for["RemotePortId"]
+        else:
+            searching_for_remote_portId = 'No remote portId' # do NOT use 'None' or ""
+        if "LocalLinkPartnerId" in searching_for:
+            searching_for_local_partnerId =searching_for["LocalLinkPartnerId"]
+        else:
+            searching_for_local_partnerId = 'No local partnerId' # do NOT use 'None' or ""
+        if "LocalPortId" in searching_for:
+            searching_for_local_portId =searching_for["LocalPortId"]
+        else:
+            searching_for_local_portId = 'No local portId' # do NOT use 'None' or ""
+
+        print(f"----- RemoteLinkPartnerId {searching_for_remote_partnerId}")
+        print(f"----- RemotePortId {searching_for_remote_portId}")
+        print(f"----- LocalLinkPartnerId {searching_for_local_partnerId}")
+        print(f"----- LocalPortId {searching_for_local_portId}")
+        logger.info(f"searching for match to {searching_port_URI}")
+        for agent_id, agent_db in URI_aliasDB['Agents_xref_URIs'].items():
+            if agent_id != searching_agent_id and 'boundaryPorts' in agent_db:
+                print(f"----- checking boundaryPorts of {agent_id}")
+                for port_URI, port_details in agent_db['boundaryPorts'].items():
+                    # always check if the remote port device ID is found first
+                    print(f"----- port_URI {port_URI}")
+                    print(f"----- port_details {port_details}")
+                    if ("LocalLinkPartnerId" in port_details) and \
+                        (port_details["LocalLinkPartnerId"] == searching_for_remote_partnerId) and \
+                        ("LocalPortId" in port_details) and \
+                        (port_details["LocalPortId"] == searching_for_remote_portId):
+                        matching_port_URIs.append(port_URI)
+                        # cross reference BOTH agent's boundaryPorts
+                        print(f"----- found a matching port {port_URI}")
+                        URI_aliasDB['Agents_xref_URIs'][agent_id]['boundaryPorts']\
+                            [port_URI]['PeerPortURI'] = searching_port_URI
+                        URI_aliasDB['Agents_xref_URIs'][searching_agent_id]['boundaryPorts']\
+                            [searching_port_URI]['PeerPortURI'] = port_URI
+                    # only check if the local port device ID is being waited on if first check fails
+                    else:
+                        if ("RemoteLinkPartnerId" in port_details) and \
+                            (port_details["RemoteLinkPartnerId"] == searching_for_local_partnerId) and \
+                            ("RemotePortId" in port_details) and \
+                            (port_details["RemotePortId"] == searching_for_local_portId):
+                            matching_port_URIs.append(port_URI)
+                            # cross reference BOTH agent's boundaryPorts
+                            print(f"----- found a matching port {port_URI}")
+                            URI_aliasDB['Agents_xref_URIs'][agent_id]['boundaryPorts']\
+                                [port_URI]['PeerPortURI'] = searching_port_URI
+                            URI_aliasDB['Agents_xref_URIs'][searching_agent_id]['boundaryPorts']\
+                                [searching_port_URI]['PeerPortURI'] = port_URI
+
+
+        logger.debug(f"matching_ports {matching_port_URIs}")
+        return matching_port_URIs
+
+
+
+    def track_boundary_port(self, redfish_obj, aggregation_source):
+
+        agent_alias_dict = {
+            "aliases":{},
+            "boundaryPorts":{}
+            }
+
+        try:
+            uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            if os.path.exists(uri_alias_file):
+                print(f"reading alias file {uri_alias_file}")
+                with open(uri_alias_file, 'r') as data_json:
+                    uri_aliasDB = json.load(data_json)
+                    data_json.close()
+                print(json.dumps(uri_aliasDB, indent = 4))
+            else:
+                print(f"alias file {uri_alias_file} not found")
+                raise Exception 
+
+        except:
+            raise Exception
+
+
+        print(f"---- now processing a boundary port")
+        logger.info(f"---- now processing a boundary port")
+        obj_type = redfish_obj["@odata.type"].split(".")[0]
+        obj_type = obj_type.replace("#","")
+        save_alias_file = False 
+        print(f"---- sunfish URI {redfish_obj['@odata.id']}")
+        print(f"---- obj type {obj_type}")
+        port_protocol = redfish_obj["PortProtocol"]
+        port_type = redfish_obj["PortType"]
+        port_bc_flag = redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"]
+        print(f"---- port_bc_flag {port_bc_flag}")
+        if obj_type == "Port" and port_bc_flag == "BoundaryPort":
+            print(f"---- CXL BoundaryPort")
+            owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
+            localPortURI = redfish_obj['@odata.id']
+            if port_protocol=="CXL" and port_type == "InterswitchPort":
+                print(f"---- CXL InterswitchPort")
+                print(f"---- owning_agent_id {owning_agent_id}")
+                print(f"---- localPortURI {localPortURI}")
+                # create a boundPort entry in uri_aliasDB
+                if owning_agent_id not in uri_aliasDB["Agents_xref_URIs"]:
+                    uri_aliasDB["Agents_xref_URIs"][owning_agent_id] = agent_alias_dict
+                    uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]={} 
+                elif "boundaryPorts" not in uri_aliasDB["Agents_xref_URIs"][owning_agent_id]:
+                    uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"] = {}
+                    uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI] = {}
+
+                #  log what the fabric port reports its own PortId and its own LinkPartnerId
+                if "CXL" in redfish_obj and "LinkPartnerTransmit" in redfish_obj["CXL"]: # rely on 'and' short circuiting
+                    local_link_partner_id = redfish_obj["CXL"]["LinkPartnerTransmit"]["LinkPartnerId"]
+                    local_port_id = redfish_obj["CXL"]["LinkPartnerTransmit"]["PortId"]
+                    uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]\
+                                ["LocalLinkPartnerId"] = local_link_partner_id
+                    uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]\
+                                ["LocalPortId"] =  local_port_id
+
+                #  log if the fabric port reports its received LinkPartnerInfo from other end
+                if "CXL" in redfish_obj and "LinkPartnerReceive" in redfish_obj["CXL"]: # rely on 'and' short circuiting
+                    remote_link_partner_id = redfish_obj["CXL"]["LinkPartnerReceive"]["LinkPartnerId"]
+                    remote_port_id = redfish_obj["CXL"]["LinkPartnerReceive"]["PortId"]
+                    print(f"---- obj link_partner_id {remote_link_partner_id}")
+                    uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]\
+                                ["RemoteLinkPartnerId"] =remote_link_partner_id
+                    uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]\
+                                ["RemotePortId"] = remote_port_id
+                    
+                # now need to write aliasDB back to file
+                save_alias_file = True
+                with open(uri_alias_file,'w') as data_json:
+                    json.dump(uri_aliasDB, data_json, indent=4, sort_keys=True)
+                    data_json.close()
+                    print(json.dumps(uri_aliasDB, indent=2))
+            else:  
+                print(f"---- CXL BoundaryPort found, but not on CXL Fabric Link")
+                pass
+        matching_ports = RedfishEventHandler.match_boundary_port(self, owning_agent_id, localPortURI, uri_aliasDB)
+        if matching_ports or save_alias_file:
+            with open(uri_alias_file,'w') as data_json:
+                json.dump(uri_aliasDB, data_json, indent=4, sort_keys=True)
+                data_json.close()
+                print(json.dumps(uri_aliasDB, indent=2))
+        print(f"----- boundary ports matched {matching_ports}")
+        return
+                    
+
+
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
-    #  BoundaryComponent = ["owned", "foreign", "non-boundary","unknown"]
+    #  BoundaryComponent = ["owned", "foreign", "BoundaryLink","unknown"]
     oem = {
         "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions",
         "ManagingAgent": {
             "@odata.id": aggregation_source["@odata.id"]
         },
-        "BoundaryComponent": "unknown"
+        "BoundaryComponent": "owned"
     }
     if "Oem" not in redfish_obj:
         redfish_obj["Oem"] = {"Sunfish_RM": oem}
