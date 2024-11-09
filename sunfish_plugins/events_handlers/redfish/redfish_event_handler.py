@@ -898,6 +898,7 @@ class RedfishEventHandler(EventHandlerInterface):
     def match_boundary_port(self, searching_agent_id, searching_port_URI, URI_aliasDB):
         
         matching_port_URIs = []
+        # pull up the link partner dict for this agent.Port 
         searching_for = URI_aliasDB['Agents_xref_URIs'][searching_agent_id]\
                 ['boundaryPorts'][searching_port_URI]
 
@@ -999,8 +1000,8 @@ class RedfishEventHandler(EventHandlerInterface):
             print(f"---- CXL BoundaryPort")
             owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
             localPortURI = redfish_obj['@odata.id']
-            if port_protocol=="CXL" and port_type == "InterswitchPort":
-                print(f"---- CXL InterswitchPort")
+            if port_protocol=="CXL" and (port_type == "InterswitchPort" or port_type== "UpstreamPort"):
+                print(f"---- CXL {port_type}")
                 print(f"---- owning_agent_id {owning_agent_id}")
                 print(f"---- localPortURI {localPortURI}")
                 # create a boundPort entry in uri_aliasDB
@@ -1015,6 +1016,8 @@ class RedfishEventHandler(EventHandlerInterface):
                 if "CXL" in redfish_obj and "LinkPartnerTransmit" in redfish_obj["CXL"]: # rely on 'and' short circuiting
                     local_link_partner_id = redfish_obj["CXL"]["LinkPartnerTransmit"]["LinkPartnerId"]
                     local_port_id = redfish_obj["CXL"]["LinkPartnerTransmit"]["PortId"]
+                    if localPortURI not in uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"]:
+                        uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI] = {}
                     uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]\
                                 ["LocalLinkPartnerId"] = local_link_partner_id
                     uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]\
@@ -1025,6 +1028,8 @@ class RedfishEventHandler(EventHandlerInterface):
                     remote_link_partner_id = redfish_obj["CXL"]["LinkPartnerReceive"]["LinkPartnerId"]
                     remote_port_id = redfish_obj["CXL"]["LinkPartnerReceive"]["PortId"]
                     print(f"---- obj link_partner_id {remote_link_partner_id}")
+                    if localPortURI not in uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"]:
+                        uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI] = {}
                     uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]\
                                 ["RemoteLinkPartnerId"] =remote_link_partner_id
                     uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]\
@@ -1037,7 +1042,7 @@ class RedfishEventHandler(EventHandlerInterface):
                     data_json.close()
                     print(json.dumps(uri_aliasDB, indent=2))
             else:  
-                print(f"---- CXL BoundaryPort found, but not on CXL Fabric Link")
+                print(f"---- CXL BoundaryPort found, but not on InterswitchPort or UpstreamPort")
                 pass
         matching_ports = RedfishEventHandler.match_boundary_port(self, owning_agent_id, localPortURI, uri_aliasDB)
         if matching_ports or save_alias_file:
