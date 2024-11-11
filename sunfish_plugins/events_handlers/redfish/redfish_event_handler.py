@@ -141,8 +141,6 @@ class RedfishEventHandlersTable:
 
         # patch the aggregation_source object in storage with all the new resources found
         event_handler.core.storage_backend.patch(id, aggregation_source)
-        # before we are done, we have to process all renamed paths from this aggregation_source.
-        # Need to call the updateUploadedObjectPaths() utility
         return 200
 
     @classmethod
@@ -417,7 +415,9 @@ class RedfishEventHandler(EventHandlerInterface):
         # the uploaded object was written
         RedfishEventHandler.updateAllAliasedLinks(self,aggregation_source)
         # now we need to re-direct any boundary port link references
-        # RedfishEventHandler.updateAllRedirectLinks(self, aggregation_source)
+        # this needs to be done on ALL agents, not just the one we just uploaded
+        #RedfishEventHandler.updateAllRedirectedLinks(self, aggregation_source)
+        RedfishEventHandler.updateAllAgentsRedirectedLinks(self)
 
         return visited  #why not the 'fetched' list?
 
@@ -746,6 +746,184 @@ class RedfishEventHandler(EventHandlerInterface):
 
         except:
             logger.error(f"could not update links in object {object_URI}")
+
+    def updateAllAgentsRedirectedLinks(self ):
+        # after renaming all links, need to redirect the placeholder links
+        # will eventually replace file read & load of aliasDB with aliasDB passed in as arg
+        try:
+            uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            if os.path.exists(uri_alias_file):
+                print(f"reading alias file {uri_alias_file}")
+                with open(uri_alias_file, 'r') as data_json:
+                    uri_aliasDB = json.load(data_json)
+                    data_json.close()
+                print(json.dumps(uri_aliasDB, indent = 4))
+            else:
+                print(f"alias file {uri_alias_file} not found")
+                raise Exception 
+
+        except:
+            raise Exception
+
+
+        modified_aliasDB = False
+        for owning_agent_id in uri_aliasDB['Agents_xref_URIs']:
+            logger.debug(f"redirecting placeholder links in all boundary ports for : {owning_agent_id}")
+            print(f"redirecting placeholder links in all boundary ports for : {owning_agent_id}")
+            if owning_agent_id in uri_aliasDB['Agents_xref_URIs']:
+                if 'boundaryPorts' in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]:
+                    for agent_bp_URI in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts']:
+                        agent_bp_obj = self.storage_backend.read(agent_bp_URI)
+                        print(f"------ redirecting links for {agent_bp_URI}")
+                        # check PortType
+                        if "PortType" in agent_bp_obj and agent_bp_obj["PortType"] == "InterswitchPort":
+                            print(f"------ InterswitchPort")
+                            if "PeerPortURI" in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts'][agent_bp_URI]:
+                                print(f"------ PeerPortURI found")
+                                RedfishEventHandler.redirectInterswitchLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB)
+                                modified_aliasDB = True
+                                # need to replace the update object and re-save the uri_aliasDB
+                                #print(f"------ redirected object is {json.dumps(agent_bp_obj, indent=4)}")
+                                self.storage_backend.replace(agent_bp_obj)
+                            else:
+                                print(f"------ PeerPortURI NOT found")
+                                pass
+
+                        elif "PortType" in agent_bp_obj and agent_bp_obj["PortType"] == "UpstreamPort":
+                            print(f"------ UpstreamPort")
+                            if "PeerPortURI" in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts'][agent_bp_URI]:
+                                print(f"------ PeerPortURI found")
+                                RedfishEventHandler.redirectUpstreamPortLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB)
+                                modified_aliasDB = True
+                                # need to replace the update object and re-save the uri_aliasDB
+                                print(f"------ redirected object is {json.dumps(agent_bp_obj, indent=4)}")
+                                self.storage_backend.replace(agent_bp_obj)
+                            else:
+                                print(f"------ PeerPortURI NOT found")
+                                pass
+
+                        
+
+
+        if modified_aliasDB:
+            with open(uri_alias_file,'w') as data_json:
+                json.dump(uri_aliasDB, data_json, indent=4, sort_keys=True)
+                data_json.close()
+        return 
+
+
+    def redirectInterswitchLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB):
+
+
+        logger.info(f"redirecting Interswitch ConnectedSwitches and ConnectedSwitchPorts")
+        print(f"------ redirecting Interswitch ConnectedSwitches and ConnectedSwitchPorts")
+
+        agent_bp_URI = agent_bp_obj["@odata.id"]
+        redirected_CSP = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
+              ['boundaryPorts'][agent_bp_URI]["PeerPortURI"]
+        switch_uri_segments = redirected_CSP.split("/")[0:-2]
+        print(f"------ switch_uri_segments {switch_uri_segments}")
+        redirected_switch_link=""
+        for i in range(1,len(switch_uri_segments)):
+            redirected_switch_link = redirected_switch_link +"/" + switch_uri_segments[i] 
+        print(f"------ redirected_switch_link is {redirected_switch_link}")
+
+        if "Links" not in agent_bp_obj:
+            agent_bp_obj["Links"] = {}
+        if "ConnectedSwitchPorts" not in agent_bp_obj["Links"]:
+            agent_bp_obj["Links"]["ConnectedSwitchPorts"]=[]
+        if "ConnectedSwitches" not in agent_bp_obj["Links"]:
+            agent_bp_obj["Links"]["ConnectedSwitches"]=[]
+        if len(agent_bp_obj["Links"]["ConnectedSwitchPorts"]) >1:
+                logger.error(f"Interswitch Link claims >1 ConnectedSwitchPorts")
+                print(f"------ Interswitch Link claims >1 ConnectedSwitchPorts")
+        else: 
+            if agent_bp_obj["Links"]["ConnectedSwitchPorts"]:
+                agent_placeholder_CSP = agent_bp_obj["Links"]["ConnectedSwitchPorts"][0]["@odata.id"]
+                agent_bp_obj["Links"]["ConnectedSwitchPorts"][0]["@odata.id"] = redirected_CSP
+                logger.info(f"redirected {agent_placeholder_CSP} to \n------ {redirected_CSP}")
+                print(f"------ redirected {agent_placeholder_CSP} to \n------ {redirected_CSP}")
+                # save the original agent placeholder in the uri_aliasDB
+                uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
+                    ['boundaryPorts'][agent_bp_URI]["AgentPeerPortURI"] = agent_placeholder_CSP
+            else: # no placeholder links in ConnectedSwitchPorts array
+                agent_bp_obj["Links"]["ConnectedSwitchPorts"].append({"@odata.id":redirected_CSP})
+                logger.info(f"created ConnectedSwitchPort to {redirected_CSP}")
+                print(f"------ created ConnectedSwitchPort to {redirected_CSP}")
+
+
+        if len(agent_bp_obj["Links"]["ConnectedSwitches"]) >1:
+            logger.error(f"Interswitch Link claims >1 ConnectedSwitches")
+            print(f"------ Interswitch Link claims >1 ConnectedSwitches")
+        else:
+            if agent_bp_obj["Links"]["ConnectedSwitches"]:
+                agent_placeholder_switch_link = agent_bp_obj["Links"]["ConnectedSwitches"][0]["@odata.id"]
+                agent_bp_obj["Links"]["ConnectedSwitches"][0]["@odata.id"] = redirected_switch_link
+                logger.info(f"redirected {agent_placeholder_switch_link} to \n------ {redirected_switch_link}")
+                print(f"------ redirected {agent_placeholder_switch_link} to \n------ {redirected_switch_link}")
+                # save the original agent placeholder in the uri_aliasDB
+                uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
+                    ['boundaryPorts'][agent_bp_URI]["AgentPeerSwitchURI"] = agent_placeholder_switch_link
+            else: # no placeholder links in ConnectedSwitches array
+                agent_bp_obj["Links"]["ConnectedSwitches"].append({"@odata.id":redirected_switch_link})
+                logger.info(f"created ConnectedSwitches to {redirected_switch_link}")
+                print(f"------ created ConnectedSwitches to {redirected_switch_link}")
+
+
+    def redirectUpstreamPortLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB):
+
+        logger.info(f"redirecting UpstreamPort AssociatedEndpoints and ConnectedPorts")
+        print(f"------ redirecting UpstreamPort AssociatedEndpoints and ConnectedPorts")
+
+        agent_bp_URI = agent_bp_obj["@odata.id"]
+        redirected_CP = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
+              ['boundaryPorts'][agent_bp_URI]["PeerPortURI"]
+        redirected_endpoint = "None"  #for now, to test
+
+        if "Links" not in agent_bp_obj:
+            agent_bp_obj["Links"] = {}
+        if "ConnectedPorts" not in agent_bp_obj["Links"]:
+            agent_bp_obj["Links"]["ConnectedPorts"]=[]
+        if "AssociatedEndpoints" not in agent_bp_obj["Links"]:
+            agent_bp_obj["Links"]["AssociatedEndpoints"]=[]
+
+        if len(agent_bp_obj["Links"]["ConnectedPorts"]) >1:
+                logger.error(f"UpstreamPort Link claims >1 ConnectedPorts")
+                print(f"------ UpstreamPort Link claims >1 ConnectedPorts")
+        else: 
+            if agent_bp_obj["Links"]["ConnectedPorts"]:
+                agent_placeholder_CP = agent_bp_obj["Links"]["ConnectedPorts"][0]["@odata.id"]
+                agent_bp_obj["Links"]["ConnectedPorts"][0]["@odata.id"] = redirected_CP
+                logger.info(f"redirected {agent_placeholder_CP} to \n------ {redirected_CP}")
+                print(f"------ redirected {agent_placeholder_CP} to \n------ {redirected_CP}")
+                # save the original agent placeholder in the uri_aliasDB
+                uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
+                    ['boundaryPorts'][agent_bp_URI]["AgentPeerPortURI"] = agent_placeholder_CP
+            else: # no placeholder links in ConnectedSwitchPorts array
+                agent_bp_obj["Links"]["ConnectedPorts"].append({"@odata.id":redirected_CP})
+                logger.info(f"created ConnectedPorts to {redirected_CSP}")
+                print(f"------ created ConnectedPorts to {redirected_CSP}")
+
+
+        if len(agent_bp_obj["Links"]["AssociatedEndpoints"]) >1:
+            logger.error(f"UpstreamPort Link claims >1 AssociatedEndpoints")
+            print(f"------ UpstreamPort Link claims >1 AssociatedEndpoints")
+        else:
+            if agent_bp_obj["Links"]["AssociatedEndpoints"]:
+                agent_placeholder_endpoint = agent_bp_obj["Links"]["AssociatedEndpoints"][0]["@odata.id"]
+                agent_bp_obj["Links"]["AssociatedEndpoints"][0]["@odata.id"] = redirected_endpoint
+                logger.info(f"redirected {agent_placeholder_endpoint} to \n------ {redirected_endpoint}")
+                print(f"------ redirected {agent_placeholder_endpoint} to \n------ {redirected_endpoint}")
+                # save the original agent placeholder in the uri_aliasDB
+                uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
+                    ['boundaryPorts'][agent_bp_URI]["AgentPeerEndpointURI"] = agent_placeholder_endpoint
+            else: # no placeholder links in AssociatedEndpoints array
+                agent_bp_obj["Links"]["AssociatedEndpoints"].append({"@odata.id":redirected_endpoint})
+                logger.info(f"created AssociatedEndpoints to {redirected_endpoint}")
+                print(f"------ created AssociatedEndpoints to {redirected_endpoint}")
+
+
+
 
     def updateSunfishAliasDB(self,sunfish_URI, agent_URI, aggregation_source):
         try:
