@@ -778,6 +778,7 @@ class RedfishEventHandler(EventHandlerInterface):
                         # check PortType
                         if "PortType" in agent_bp_obj and agent_bp_obj["PortType"] == "InterswitchPort":
                             print(f"------ InterswitchPort")
+                            # We are assuming if one end of link is ISL, both must be
                             if "PeerPortURI" in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts'][agent_bp_URI]:
                                 print(f"------ PeerPortURI found")
                                 RedfishEventHandler.redirectInterswitchLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB)
@@ -789,7 +790,7 @@ class RedfishEventHandler(EventHandlerInterface):
                                 print(f"------ PeerPortURI NOT found")
                                 pass
 
-                        elif "PortType" in agent_bp_obj and agent_bp_obj["PortType"] == "UpstreamPort":
+                        elif "PortType" in agent_bp_obj and (agent_bp_obj["PortType"] == "UpstreamPort" ):
                             print(f"------ UpstreamPort")
                             if "PeerPortURI" in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts'][agent_bp_URI]:
                                 print(f"------ PeerPortURI found")
@@ -802,6 +803,18 @@ class RedfishEventHandler(EventHandlerInterface):
                                 print(f"------ PeerPortURI NOT found")
                                 pass
 
+                        elif "PortType" in agent_bp_obj and (agent_bp_obj["PortType"] == "DownstreamPort" ):
+                            print(f"------ DownstreamPort")
+                            if "PeerPortURI" in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts'][agent_bp_URI]:
+                                print(f"------ PeerPortURI found")
+                                RedfishEventHandler.redirectDownstreamPortLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB)
+                                modified_aliasDB = True
+                                # need to replace the update object and re-save the uri_aliasDB
+                                print(f"------ redirected object is {json.dumps(agent_bp_obj, indent=4)}")
+                                self.storage_backend.replace(agent_bp_obj)
+                            else:
+                                print(f"------ PeerPortURI NOT found")
+                                pass
                         
 
 
@@ -878,7 +891,17 @@ class RedfishEventHandler(EventHandlerInterface):
         agent_bp_URI = agent_bp_obj["@odata.id"]
         redirected_CP = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
               ['boundaryPorts'][agent_bp_URI]["PeerPortURI"]
-        redirected_endpoint = "None"  #for now, to test
+        # find the parent (assumed to be a host) obj of this peer port
+        host_uri_segments = redirected_CP.split("/")[0:-2]
+        host_link=""
+        for i in range(1,len(host_uri_segments)):
+            host_link = host_link +"/" + host_uri_segments[i] 
+        print(f"------ host_link is {host_link}")
+
+        # extract the Endpoint URI associated with this parent object
+        host_obj = self.storage_backend.read(host_link)
+        redirected_endpoint = host_obj["Links"]["Endpoints"][0]["@odata.id"]
+        #redirected_endpoint = "None"  #for now, to test
 
         if "Links" not in agent_bp_obj:
             agent_bp_obj["Links"] = {}
@@ -901,8 +924,8 @@ class RedfishEventHandler(EventHandlerInterface):
                     ['boundaryPorts'][agent_bp_URI]["AgentPeerPortURI"] = agent_placeholder_CP
             else: # no placeholder links in ConnectedSwitchPorts array
                 agent_bp_obj["Links"]["ConnectedPorts"].append({"@odata.id":redirected_CP})
-                logger.info(f"created ConnectedPorts to {redirected_CSP}")
-                print(f"------ created ConnectedPorts to {redirected_CSP}")
+                logger.info(f"created ConnectedPorts to {redirected_CP}")
+                print(f"------ created ConnectedPorts to {redirected_CP}")
 
 
         if len(agent_bp_obj["Links"]["AssociatedEndpoints"]) >1:
@@ -922,8 +945,63 @@ class RedfishEventHandler(EventHandlerInterface):
                 logger.info(f"created AssociatedEndpoints to {redirected_endpoint}")
                 print(f"------ created AssociatedEndpoints to {redirected_endpoint}")
 
+    def redirectDownstreamPortLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB):
+
+        logger.info(f"redirecting Downstream ConnectedSwitches and ConnectedSwitchPorts")
+        print(f"------ redirecting Downstream ConnectedSwitches and ConnectedSwitchPorts")
+
+        agent_bp_URI = agent_bp_obj["@odata.id"]
+        redirected_CSP = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
+              ['boundaryPorts'][agent_bp_URI]["PeerPortURI"]
+        switch_uri_segments = redirected_CSP.split("/")[0:-2]
+        print(f"------ switch_uri_segments {switch_uri_segments}")
+        redirected_switch_link=""
+        for i in range(1,len(switch_uri_segments)):
+            redirected_switch_link = redirected_switch_link +"/" + switch_uri_segments[i] 
+        print(f"------ redirected_switch_link is {redirected_switch_link}")
+
+        if "Links" not in agent_bp_obj:
+            agent_bp_obj["Links"] = {}
+        if "ConnectedSwitchPorts" not in agent_bp_obj["Links"]:
+            agent_bp_obj["Links"]["ConnectedSwitchPorts"]=[]
+        if "ConnectedSwitches" not in agent_bp_obj["Links"]:
+            agent_bp_obj["Links"]["ConnectedSwitches"]=[]
+        if len(agent_bp_obj["Links"]["ConnectedSwitchPorts"]) >1:
+                logger.error(f"Downstream Link claims >1 ConnectedSwitchPorts")
+                print(f"------ Downstream Link claims >1 ConnectedSwitchPorts")
+        else: 
+            if agent_bp_obj["Links"]["ConnectedSwitchPorts"]:
+                agent_placeholder_CSP = agent_bp_obj["Links"]["ConnectedSwitchPorts"][0]["@odata.id"]
+                agent_bp_obj["Links"]["ConnectedSwitchPorts"][0]["@odata.id"] = redirected_CSP
+                logger.info(f"redirected {agent_placeholder_CSP} to \n------ {redirected_CSP}")
+                print(f"------ redirected {agent_placeholder_CSP} to \n------ {redirected_CSP}")
+                # save the original agent placeholder in the uri_aliasDB
+                uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
+                    ['boundaryPorts'][agent_bp_URI]["AgentPeerPortURI"] = agent_placeholder_CSP
+            else: # no placeholder links in ConnectedSwitchPorts array
+                agent_bp_obj["Links"]["ConnectedSwitchPorts"].append({"@odata.id":redirected_CSP})
+                logger.info(f"created ConnectedSwitchPort to {redirected_CSP}")
+                print(f"------ created ConnectedSwitchPort to {redirected_CSP}")
 
 
+        if len(agent_bp_obj["Links"]["ConnectedSwitches"]) >1:
+            logger.error(f"Downstream Link claims >1 ConnectedSwitches")
+            print(f"------ Downstream Link claims >1 ConnectedSwitches")
+        else:
+            if agent_bp_obj["Links"]["ConnectedSwitches"]:
+                agent_placeholder_switch_link = agent_bp_obj["Links"]["ConnectedSwitches"][0]["@odata.id"]
+                agent_bp_obj["Links"]["ConnectedSwitches"][0]["@odata.id"] = redirected_switch_link
+                logger.info(f"redirected {agent_placeholder_switch_link} to \n------ {redirected_switch_link}")
+                print(f"------ redirected {agent_placeholder_switch_link} to \n------ {redirected_switch_link}")
+                # save the original agent placeholder in the uri_aliasDB
+                uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
+                    ['boundaryPorts'][agent_bp_URI]["AgentPeerSwitchURI"] = agent_placeholder_switch_link
+            else: # no placeholder links in ConnectedSwitches array
+                agent_bp_obj["Links"]["ConnectedSwitches"].append({"@odata.id":redirected_switch_link})
+                logger.info(f"created ConnectedSwitches to {redirected_switch_link}")
+                print(f"------ created ConnectedSwitches to {redirected_switch_link}")
+
+        
 
     def updateSunfishAliasDB(self,sunfish_URI, agent_URI, aggregation_source):
         try:
@@ -1101,6 +1179,7 @@ class RedfishEventHandler(EventHandlerInterface):
         print(f"----- RemotePortId {searching_for_remote_portId}")
         print(f"----- LocalLinkPartnerId {searching_for_local_partnerId}")
         print(f"----- LocalPortId {searching_for_local_portId}")
+        print(f"----- searching for match to {searching_port_URI}")
         logger.info(f"searching for match to {searching_port_URI}")
         for agent_id, agent_db in URI_aliasDB['Agents_xref_URIs'].items():
             if agent_id != searching_agent_id and 'boundaryPorts' in agent_db:
@@ -1178,7 +1257,8 @@ class RedfishEventHandler(EventHandlerInterface):
             print(f"---- CXL BoundaryPort")
             owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
             localPortURI = redfish_obj['@odata.id']
-            if port_protocol=="CXL" and (port_type == "InterswitchPort" or port_type== "UpstreamPort"):
+            if port_protocol=="CXL" and (port_type == "InterswitchPort" or \
+                    port_type== "UpstreamPort" or port_type== "DownstreamPort"):
                 print(f"---- CXL {port_type}")
                 print(f"---- owning_agent_id {owning_agent_id}")
                 print(f"---- localPortURI {localPortURI}")
@@ -1220,7 +1300,7 @@ class RedfishEventHandler(EventHandlerInterface):
                     data_json.close()
                     print(json.dumps(uri_aliasDB, indent=2))
             else:  
-                print(f"---- CXL BoundaryPort found, but not on InterswitchPort or UpstreamPort")
+                print(f"---- CXL BoundaryPort found, but not InterswitchPort, UpstreamPort, or DownstreamPort")
                 pass
         matching_ports = RedfishEventHandler.match_boundary_port(self, owning_agent_id, localPortURI, uri_aliasDB)
         if matching_ports or save_alias_file:
