@@ -78,7 +78,7 @@ class RedfishEventHandlersTable:
     @classmethod
     def ResourceCreated(cls, event_handler: EventHandlerInterface, event: dict, context: str):
         # incoming context (an aggregation_source ID) comes from event sender
-        pdb.set_trace()
+        #pdb.set_trace()
         if context == "":
             raise PropertyNotFound("Missing agent context in ResourceCreated event")
         # put the global definition and initial loading of sunfishAliasDB dictionary here
@@ -159,7 +159,7 @@ class RedfishEventHandlersTable:
         hostname = event['MessageArgs'][1]  # target address
         destination = hostname + "/EventListener" # may match a Subscription object's 'Destination' property
         logger.debug(f"path of file_to_send is {file_to_send}")
-        pdb.set_trace()
+        #pdb.set_trace()
         try:
             if os.path.exists(file_to_send):
                 with open(file_to_send, 'r') as data_json:
@@ -339,7 +339,7 @@ class RedfishEventHandler(EventHandlerInterface):
 
     def find_subscriber_context(self, destination):
         # look up the subscriber's "Context" for the given event Destination
-        pdb.set_trace()
+        #pdb.set_trace()
         context = ""
         try:
             subscribers_list = self.storage_backend.read(

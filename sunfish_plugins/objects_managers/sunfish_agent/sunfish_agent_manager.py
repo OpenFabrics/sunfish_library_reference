@@ -133,7 +133,7 @@ class SunfishAgentManager(ObjectManagerInterface):
 
         try:
             sunfish_aliases = uri_aliasDB["Sunfish_xref_URIs"]["aliases"]
-            pdb.set_trace()
+            #pdb.set_trace()
             object_URI = sunfish_obj["@odata.id"]
             aliasedNestedPaths=[]
             obj_modified = False
@@ -215,7 +215,7 @@ class SunfishAgentManager(ObjectManagerInterface):
 
 
         try:
-            pdb.set_trace()
+            #pdb.set_trace()
             owning_agent_id = agent_obj["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"].split("/")[-1]
             agent_aliases = uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"]
             object_URI = agent_obj["@odata.id"]
