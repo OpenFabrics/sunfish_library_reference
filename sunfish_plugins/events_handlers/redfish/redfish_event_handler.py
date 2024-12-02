@@ -112,6 +112,7 @@ class RedfishEventHandlersTable:
         # here we are assuming that we are getting a fully populated redfish
         # object from the agent.
         if "@odata.id" not in response:
+            # should never hit this!
             logger.warning(f"Resource {id} did not have @odata.id set when retrieved from Agent. Initializing its value with {id}")
             response["odata.id"] = id
 
@@ -122,16 +123,10 @@ class RedfishEventHandlersTable:
                 resource, 'index.json')
         if not os.path.exists(fs_full_path):
             RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
-        else:  # could be a second agent with naming conflicts
-            logger.error(f"resource to create: {id} already exists.")
-            # let's run the inspection process on it 
+        else:  # could be a second agent with naming conflicts, or same agent with duplicate
+            logger.warning(f"resource to create: {id} already exists.")
+            # run the inspection process on it to find cause of warning
             RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
-            # eventually we need to resolve the URI conflict by checking that the
-            # aggregation_source of the existing obj is the same aggregation_source 
-            # which just sent this CreateResource event, making this a duplicate attempt.
-            # if this is a different aggregation_source, we have a naming conflict 
-            # to handle inside the createInspectedObject() routine
-            #raise AlreadyExists(id)
             
 
         # patch the aggregation_source object in storage with all the new resources found
@@ -519,7 +514,8 @@ class RedfishEventHandler(EventHandlerInterface):
                 aggregation_source["Links"]["ResourcesAccessed"].append(redfish_obj['@odata.id'])
             return redfish_obj
         else: # Agent did not successfully return the obj_id sought
-            # we still need to check the link for an aliased parent segment
+            # we still need to check the obj_id for an aliased parent segment
+            # so we detect renamed navigation links 
             sunfish_aliased_URI = RedfishEventHandler.xlateToSunfishPath(self, obj_id, aggregation_source)
             if obj_id != sunfish_aliased_URI:
                 RedfishEventHandler.updateSunfishAliasDB(self, sunfish_aliased_URI, obj_id, aggregation_source)
@@ -546,6 +542,7 @@ class RedfishEventHandler(EventHandlerInterface):
                 if redfish_obj['Id'] == agent_redfish_URI.split("/")[-1]:
                     redfish_obj['Id'] = sunfish_aliased_URI.split("/")[-1]
         print(f"xlated agent_redfish_URI is {sunfish_aliased_URI}")  
+        logger.debug(f"xlated agent_redfish_URI is {sunfish_aliased_URI}")  
         if 'Collection' in redfish_obj['@odata.type']:
             logger.debug("This is a collection, ignore it until we need it")
             pass
@@ -560,6 +557,7 @@ class RedfishEventHandler(EventHandlerInterface):
                 existing_obj = self.get_object(file_path)
                 existing_agent_uri = existing_obj["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"]
                 print(f"managingAgent of Sunfish {obj_path} is {uploading_agent_uri}")
+                logger.debug(f"managingAgent of Sunfish {obj_path} is {uploading_agent_uri}")
                 if existing_agent_uri == uploading_agent_uri:
                     # we have a duplicate posting of the object from same agent
                     # check if existing Sunfish object is same as that being fetched from aggregation_source
