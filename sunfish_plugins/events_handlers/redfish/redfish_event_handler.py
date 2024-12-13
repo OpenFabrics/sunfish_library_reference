@@ -53,7 +53,7 @@ class RedfishEventHandlersTable:
         aggregation_source_id = str(uuid.uuid4())
         aggregation_source_template = {
             "@odata.type": "#AggregationSource.v1_2_.AggregationSource",
-            "@odata.id": f"{event_handler.core.conf['redfish_root']}/AggregationService/AggregationSources/{aggregation_source_id}",
+            "@odata.id": f"{event_handler.core.conf['redfish_root']}AggregationService/AggregationSources/{aggregation_source_id}",
             "HostName": hostname,
             "Id": aggregation_source_id,
             "Links": {
@@ -100,17 +100,18 @@ class RedfishEventHandlersTable:
             aggregation_source = event_handler.core.storage_backend.read(agg_src_path)
         else:
             raise PropertyNotFound("Cannot find aggregation source; file does not exist")
+        # fetch the actual resource to be created from agent
         hostname = aggregation_source["HostName"]
         response = requests.get(f"{hostname}/{id}")
 
         if response.status_code != 200:
             raise ResourceNotFound("Aggregation source read from Agent failed") 
         response = response.json()
-        print(f"new resource is \n")
-        print(json.dumps(response, indent=4))
+        logger.info(f"new resource is \n")
+        logger.info(json.dumps(response, indent=4))
 
         # here we are assuming that we are getting a fully populated redfish
-        # object from the agent.
+        # object from the agent.  Add real tests here!
         if "@odata.id" not in response:
             # should never hit this!
             logger.warning(f"Resource {id} did not have @odata.id set when retrieved from Agent. Initializing its value with {id}")
@@ -123,9 +124,10 @@ class RedfishEventHandlersTable:
                 resource, 'index.json')
         if not os.path.exists(fs_full_path):
             RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
-        else:  # could be a second agent with naming conflicts, or same agent with duplicate
+        else:  
             logger.warning(f"resource to create: {id} already exists.")
-            # run the inspection process on it to find cause of warning
+            # could be a second agent with naming conflicts, or same agent with duplicate
+            # still run the inspection process on it to find cause of warning
             RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
             
 
@@ -301,7 +303,6 @@ class RedfishEventHandler(EventHandlerInterface):
             path = os.path.join(self.redfish_root, 'EventService', 'Subscriptions', id)
             try:
                 data = self.core.storage_backend.read(path)
-                # print('send to: ', data["Id"])
                 resp = requests.post(data['Destination'], json=payload)
                 resp.raise_for_status()
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
@@ -366,16 +367,15 @@ class RedfishEventHandler(EventHandlerInterface):
             if type(obj) == dict:
                 for key,value in obj.items():
                     if key == '@odata.id':
-                        print(f"found nested URL to Redfish obj {value}")
                         RedfishEventHandler.handleEntryIfNotVisited(self, value, visited, queue)
                     elif key != "Sunfish_RM" and (type(value) == list or type(value) == dict):
                         handleNestedObject(self, value) # need to ignore Sunfish_RM paths; they are wrong namespace
 
         while queue:
             queue = sorted(queue)
-            print(f"sorted queue:  \n{queue}")
             id = queue.pop(0)
-            redfish_obj = RedfishEventHandler.fetchResourceAndTree(self, id, aggregation_source, visited, queue, fetched)
+            redfish_obj = RedfishEventHandler.fetchResourceAndTree(self, id, aggregation_source, \
+                          visited, queue, fetched)
 
             if redfish_obj is None:  # we failed to locate it in aggregation_source
                 notfound.append(id)
@@ -385,27 +385,20 @@ class RedfishEventHandler(EventHandlerInterface):
 
             for key, val in redfish_obj.items():
                 if key == '@odata.id':
-                    #RedfishEventHandler.handleEntryIfNotVisited(self, val, visited, queue)
-                    print(f"ignored top-level @odata.id to Redfish obj {val}")
                     pass
-                #elif key == 'Links':
-                #    if type(val)==dict or type(val)==list:
-                #        handleNestedObject(self, val)
-                #
                 #  keep extracting nested @odata.id references from the currently fetched object
                 elif type(val) == list or type(val) == dict:
                     handleNestedObject(self, val)
-        print("\n\nattempted to fetch the following URIs:\n")
-        print(json.dumps(sorted(fetched),indent = 4))
-        print("\n\nAgent did not return objects for the following URIs:\n")
-        print(json.dumps(sorted(notfound),indent = 4))
+        logger.info("\n\nattempted to fetch the following URIs:\n")
+        logger.info(json.dumps(sorted(fetched),indent = 4))
+        logger.info("\n\nAgent did not return objects for the following URIs:\n")
+        logger.info(json.dumps(sorted(notfound),indent = 4))
         
         # now need to revisit all uploaded objects and update any links renamed after
         # the uploaded object was written
         RedfishEventHandler.updateAllAliasedLinks(self,aggregation_source)
         # now we need to re-direct any boundary port link references
         # this needs to be done on ALL agents, not just the one we just uploaded
-        #RedfishEventHandler.updateAllRedirectedLinks(self, aggregation_source)
         RedfishEventHandler.updateAllAgentsRedirectedLinks(self)
 
         return visited  #why not the 'fetched' list?
@@ -477,22 +470,19 @@ class RedfishEventHandler(EventHandlerInterface):
     def fetchResourceAndTree(self, id, aggregation_source, visited, queue, fetched): # if have no parent dirs
         path_nodes = id.split("/")
         need_parent_prefetch = False
-        print(f"fetchResourceAndTree path_nodes {path_nodes}")
         for node_position in range(4, len(path_nodes) - 1):
             redfish_path = f'/redfish/v1/{"/".join(path_nodes[3:node_position + 1])}'
             logger.info(f"Checking redfish path: {redfish_path}")
-            print(f"do we need to visit path {redfish_path} ?")
             if redfish_path not in visited:  
                 need_parent_prefetch = True
                 logger.info(f"Inspect redfish path: {redfish_path}")
-                print(f"yes, adding redfish path to queue: {redfish_path}")
                 queue.append(redfish_path)
                 visited.append(redfish_path)
         if need_parent_prefetch:  # requeue this id and return 'None'
             queue.append(id)
         else:  # all grand-parent objects have been visited
             # go get this object from the aggregation_source
-            print(f"fetchResourceAndTree fetching object {id}")
+            # fetchResource() will also create the Sunfish copy, if appropriate
             redfish_obj = RedfishEventHandler.fetchResource(self, id, aggregation_source)
             fetched.append(id)
             return redfish_obj
@@ -500,13 +490,13 @@ class RedfishEventHandler(EventHandlerInterface):
     def fetchResource(self, obj_id, aggregation_source):
         # only called if all grand-parent objects have been put in queue, sorted, inspected, and already fetched.
         # The parent object, if not a collection, will also have already been fetched
+        # this routine will also call create and/or merge the object into Sunfish database
         resource_endpoint = aggregation_source["HostName"] + obj_id
         logger.info(f"fetch: {resource_endpoint}")
         response = requests.get(resource_endpoint)
 
         if response.status_code == 200: # Agent must have returned this object
             redfish_obj = response.json()
-            print(f"successfully fetched {obj_id}")
 
             # now rename if necessary and copy object into Sunfish inventory
             redfish_obj = RedfishEventHandler.createInspectedObject(self,redfish_obj, aggregation_source)
@@ -541,7 +531,6 @@ class RedfishEventHandler(EventHandlerInterface):
             if 'Id' in redfish_obj:
                 if redfish_obj['Id'] == agent_redfish_URI.split("/")[-1]:
                     redfish_obj['Id'] = sunfish_aliased_URI.split("/")[-1]
-        print(f"xlated agent_redfish_URI is {sunfish_aliased_URI}")  
         logger.debug(f"xlated agent_redfish_URI is {sunfish_aliased_URI}")  
         if 'Collection' in redfish_obj['@odata.type']:
             logger.debug("This is a collection, ignore it until we need it")
@@ -555,59 +544,62 @@ class RedfishEventHandler(EventHandlerInterface):
             if os.path.exists(fs_full_path):
                 uploading_agent_uri= aggregation_source["@odata.id"]
                 existing_obj = self.get_object(file_path)
+                modified_existing_obj = False
                 existing_agent_uri = existing_obj["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"]
-                print(f"managingAgent of Sunfish {obj_path} is {uploading_agent_uri}")
                 logger.debug(f"managingAgent of Sunfish {obj_path} is {uploading_agent_uri}")
                 if existing_agent_uri == uploading_agent_uri:
-                    # we have a duplicate posting of the object from same agent
-                    # check if existing Sunfish object is same as that being fetched from aggregation_source
-                    # Need to ignore the Sunfish_RM structure in the compare
-                    # Thus, the following isn't completely correct
-                    # note we don't update the object (for now)
-                    if self.get_object(file_path) == redfish_obj:
-                        # (which shouldn't happen since we are adding in the Sunfish_RM details)
-                        warnings.warn('Duplicate Resource found, ignored')
-                        pass
-                    elif self.get_object(file_path) != redfish_obj:
-                        warnings.warn('Resource state changed')
-                        # put object change checks and updates here
+                    # reject this duplicate posting of the object from same agent 
+                    # note we don't update the object 
+                    warnings.warn('Duplicate Resource found, ignored')
+                    pass
                 else:
-                    # we may have a naming conflict between agents
-                    if redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"] != "foreign":
-                        # we have a simple name conflict
-                        # find new name, build xref
+                    # is object a Fabric?
+                    obj_type = redfish_obj["@odata.type"].split('.')[0]
+                    obj_type = obj_type.replace("#","") # #Fabric -> Fabric
+                    
+                    if obj_type == 'Fabric':
+                        # is the conflicting Fabric object the same Fabric Object?
+                        if "UUID" in redfish_obj and "UUID" in existing_obj:
+                            if redfish_obj['UUID'] == existing_obj['UUID']:
+                                # assume new Fabric object is the same as existing one
+                                # because aggregation_sources are cooperating
+                                # So, do not post this newly uploaded copy
+                                # However, do update existing object with new 'sharer agent'
+                                modified_existing_obj =RedfishEventHandler.updateIfMergedFabrics(self,redfish_obj, \
+                                        uploading_agent_uri, existing_obj)
+                                if modified_existing_obj:
+                                    self.storage_backend.replace(existing_obj)
+                                    logger.info(f"----- updated (replaced) existing fabric object")
+                            else:
+                                # different fabrics, just rename the new one
+                                redfish_obj = RedfishEventHandler.renameUploadedObject(self, redfish_obj, aggregation_source)
+                                add_aggregation_source_reference(redfish_obj, aggregation_source)
+                                logger.info(f"creating object: {file_path}")
+                                RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
+                        else:
+                            # assume different fabrics, just rename the new one
+                            redfish_obj = RedfishEventHandler.renameUploadedObject(self, redfish_obj, aggregation_source)
+                            add_aggregation_source_reference(redfish_obj, aggregation_source)
+                            logger.info(f"creating object: {file_path}")
+                            RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
+                    else:
+                        # we have a simple name conflict on a non-Fabric object
+                        # find new name, build xref, check boundary ports and create the new object
                         redfish_obj = RedfishEventHandler.renameUploadedObject(self, redfish_obj, aggregation_source)
                         add_aggregation_source_reference(redfish_obj, aggregation_source)
-                        # add_aggregation_source_reference will add "Sunfish_RM" dict to "Oem" dict
-                        # here's where we check for a Fabric Object merge
-                        merged_fabrics =RedfishEventHandler.updateIfMergedFabric(self,redfish_obj, existing_obj)
-                        
+                        logger.info(f"creating object: {file_path}")
                         if redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"] == "BoundaryPort":
                             RedfishEventHandler.track_boundary_port(self, redfish_obj, aggregation_source)
-                        print(f"creating renamed object: {file_path}")
-                        logger.info(f"creating renamed object: {file_path}")
                         RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
-                        if merged_fabrics:
-                            # need to update original fabric object with the xref AFTER new obj created
-                            self.storage_backend.replace(existing_obj)
-                            print(f"----- updated (replaced) existing fabric object")
-
-                    else:
-                        # we have a placeholder or boundary link component to process
-                        # put in placeholder codes here
-                        print(f"Non-owned component {obj_path} uploaded, ignored")
-                        logger.info(f"Non-owned component {obj_path} uploaded, ignored")
-                        #add_aggregation_source_reference(redfish_obj, aggregation_source)
-                        #print(f"creating renamed object: {file_path}")
-                        #RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
-
 
 
             else:   # assume new object, create it and its parent collection if needed
                 add_aggregation_source_reference(redfish_obj, aggregation_source)
-                print(f"creating object: {file_path}")
+                logger.info(f"creating object: {file_path}")
                 if redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"] == "BoundaryPort":
                     RedfishEventHandler.track_boundary_port(self, redfish_obj, aggregation_source)
+                # is this new object a new fabric object with same fabric UUID as an existing fabric?
+                # RedfishEventHandler.checkForAliasedFabrics(self, redfish_obj, aggregation_source)
                 RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
 
         return redfish_obj
@@ -619,42 +611,32 @@ class RedfishEventHandler(EventHandlerInterface):
         try:
             uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
             if os.path.exists(uri_alias_file):
-                print(f"reading alias file {uri_alias_file}")
                 with open(uri_alias_file, 'r') as data_json:
                     uri_aliasDB = json.load(data_json)
                     data_json.close()
-                print(json.dumps(uri_aliasDB, indent = 4))
             else:
-                print(f"alias file {uri_alias_file} not found")
+                logger.error(f"alias file {uri_alias_file} not found")
                 raise Exception 
 
         except:
             raise Exception
 
-        print(f"xlate {agent_path} to Sunfish path")
         agentGiven_segments = agent_path.split("/")
-        print(f"agentGiven tree: {agentGiven_segments}")
         owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
         logger.debug(f"agent id: {owning_agent_id}")
         #  check if owning_agent has any aliases assigned
         if owning_agent_id in uri_aliasDB["Agents_xref_URIs"]:
             logger.debug(f"xlating Agent path : {agent_path}")
-            print(f"xlating Agent path : {agent_path}")
             agentFinal_obj_path = ""
             for i in range(1,len(agentGiven_segments)):
-                print(agentGiven_segments[i])
                 agentFinal_obj_path=agentFinal_obj_path +"/"+ agentGiven_segments[i]
-                print(f"agentFinal_obj_path is {agentFinal_obj_path}")
                 # test this path segment
-                print("test this path segment")
-                print( agentFinal_obj_path in uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"])
                 if agentFinal_obj_path in uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"]:
                     # need to replace agent_path built to this point with sunfish alias
-                    print(f"found an alias for {agentFinal_obj_path}")
                     sunfishAliasPath = uri_aliasDB["Agents_xref_URIs"][owning_agent_id] \
                                     ["aliases"][agentFinal_obj_path]
                     agentFinal_obj_path = sunfishAliasPath
-                    print(f"aliased path is {agentFinal_obj_path}")
+                    logger.debug(f"aliased path is {agentFinal_obj_path}")
                 # next segment
             agent_path = agentFinal_obj_path
         return agent_path
@@ -666,9 +648,8 @@ class RedfishEventHandler(EventHandlerInterface):
                 with open(uri_alias_file, 'r') as data_json:
                     uri_aliasDB = json.load(data_json)
                     data_json.close()
-                print(json.dumps(uri_aliasDB, indent = 4))
             else:
-                print(f"alias file {uri_alias_file} not found")
+                logger.error(f"alias file {uri_alias_file} not found")
                 raise Exception 
 
         except:
@@ -688,8 +669,7 @@ class RedfishEventHandler(EventHandlerInterface):
 
             #  update all the objects
             for upload_obj_URI in agent_uploads:
-                logger.info(f"updating links in obj: {upload_obj_URI}")
-                print(f"updating links in obj: {upload_obj_URI}")
+                logger.debug(f"updating links in obj: {upload_obj_URI}")
                 RedfishEventHandler.updateObjectAliasedLinks(self, upload_obj_URI, agent_aliases)
 
         return   
@@ -711,7 +691,7 @@ class RedfishEventHandler(EventHandlerInterface):
                     if key == '@odata.id'and path_to_nested_URI != "":
                         # check @odata.id: value for an alias
                         if value == URI_to_match:
-                            print(f"---- modifying {value} to {URI_to_sub}")
+                            logger.info(f"modifying {value} to {URI_to_sub}")
                             obj[key] = URI_to_sub
                             nestedPaths.append(path_to_nested_URI)
                     elif key != "Sunfish_RM" and (type(value) == list or type(value) == dict):
@@ -720,21 +700,23 @@ class RedfishEventHandler(EventHandlerInterface):
 
         try:
             sunfish_obj = self.storage_backend.read( object_URI)
-            aliasedNestedPaths=[]
-            obj_modified = False
-            for agent_URI, sunfish_URI in agent_aliases.items():
-                # find all the references to the aliased agent_URI and replace it
-                path_to_nested_URI=""
-                aliasedNestedPaths= findNestedURIs(self, agent_URI, sunfish_URI, sunfish_obj, path_to_nested_URI )
-                if aliasedNestedPaths:
-                    obj_modified = True
-                for path in aliasedNestedPaths:
-                    print(f"---- replaced {agent_URI} with {sunfish_URI} at {path}")
-            print(f"---- aliasedNestedPaths is {aliasedNestedPaths}")
-            if obj_modified:
-                print(f"---- final updated object")
-                print(json.dumps(sunfish_obj, indent=2))
-                self.storage_backend.replace(sunfish_obj)
+            obj_type = redfish_obj["@odata.type"].split('.')[0]
+            obj_type = obj_type.split("/")[-1]
+            obj_type = obj_type.replace("#","") # #Évent -> Event 
+            # should not do aliasing on the members of a Collection
+            # since the members list should contain both original and aliased URIs
+            if "Collection" not in obj_type :
+                aliasedNestedPaths=[]
+                obj_modified = False
+                for agent_URI, sunfish_URI in agent_aliases.items():
+                    # find all the references to the aliased agent_URI and replace it
+                    path_to_nested_URI=""
+                    aliasedNestedPaths= findNestedURIs(self, agent_URI, sunfish_URI, sunfish_obj, path_to_nested_URI )
+                    if aliasedNestedPaths:
+                        obj_modified = True
+                if obj_modified:
+                    logger.info(json.dumps(sunfish_obj, indent=2))
+                    self.storage_backend.replace(sunfish_obj)
 
         except:
             logger.error(f"could not update links in object {object_URI}")
@@ -745,13 +727,11 @@ class RedfishEventHandler(EventHandlerInterface):
         try:
             uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
             if os.path.exists(uri_alias_file):
-                print(f"reading alias file {uri_alias_file}")
                 with open(uri_alias_file, 'r') as data_json:
                     uri_aliasDB = json.load(data_json)
                     data_json.close()
-                print(json.dumps(uri_aliasDB, indent = 4))
             else:
-                print(f"alias file {uri_alias_file} not found")
+                logger.error(f"alias file {uri_alias_file} not found")
                 raise Exception 
 
         except:
@@ -761,51 +741,41 @@ class RedfishEventHandler(EventHandlerInterface):
         modified_aliasDB = False
         for owning_agent_id in uri_aliasDB['Agents_xref_URIs']:
             logger.debug(f"redirecting placeholder links in all boundary ports for : {owning_agent_id}")
-            print(f"redirecting placeholder links in all boundary ports for : {owning_agent_id}")
             if owning_agent_id in uri_aliasDB['Agents_xref_URIs']:
                 if 'boundaryPorts' in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]:
                     for agent_bp_URI in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts']:
                         agent_bp_obj = self.storage_backend.read(agent_bp_URI)
-                        print(f"------ redirecting links for {agent_bp_URI}")
+                        logger.debug(f"------ redirecting links for {agent_bp_URI}")
                         # check PortType
                         if "PortType" in agent_bp_obj and agent_bp_obj["PortType"] == "InterswitchPort":
-                            print(f"------ InterswitchPort")
                             # We are assuming if one end of link is ISL, both must be
                             if "PeerPortURI" in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts'][agent_bp_URI]:
-                                print(f"------ PeerPortURI found")
                                 RedfishEventHandler.redirectInterswitchLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB)
                                 modified_aliasDB = True
                                 # need to replace the update object and re-save the uri_aliasDB
-                                #print(f"------ redirected object is {json.dumps(agent_bp_obj, indent=4)}")
                                 self.storage_backend.replace(agent_bp_obj)
                             else:
-                                print(f"------ PeerPortURI NOT found")
+                                logger.info(f"------ PeerPortURI NOT found")
                                 pass
 
                         elif "PortType" in agent_bp_obj and (agent_bp_obj["PortType"] == "UpstreamPort" ):
-                            print(f"------ UpstreamPort")
                             if "PeerPortURI" in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts'][agent_bp_URI]:
-                                print(f"------ PeerPortURI found")
                                 RedfishEventHandler.redirectUpstreamPortLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB)
                                 modified_aliasDB = True
                                 # need to replace the update object and re-save the uri_aliasDB
-                                print(f"------ redirected object is {json.dumps(agent_bp_obj, indent=4)}")
                                 self.storage_backend.replace(agent_bp_obj)
                             else:
-                                print(f"------ PeerPortURI NOT found")
+                                logger.info(f"------ PeerPortURI NOT found")
                                 pass
 
                         elif "PortType" in agent_bp_obj and (agent_bp_obj["PortType"] == "DownstreamPort" ):
-                            print(f"------ DownstreamPort")
                             if "PeerPortURI" in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['boundaryPorts'][agent_bp_URI]:
-                                print(f"------ PeerPortURI found")
                                 RedfishEventHandler.redirectDownstreamPortLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB)
                                 modified_aliasDB = True
                                 # need to replace the update object and re-save the uri_aliasDB
-                                print(f"------ redirected object is {json.dumps(agent_bp_obj, indent=4)}")
                                 self.storage_backend.replace(agent_bp_obj)
                             else:
-                                print(f"------ PeerPortURI NOT found")
+                                logger.info(f"------ PeerPortURI NOT found")
                                 pass
                         
 
@@ -821,17 +791,15 @@ class RedfishEventHandler(EventHandlerInterface):
 
 
         logger.info(f"redirecting Interswitch ConnectedSwitches and ConnectedSwitchPorts")
-        print(f"------ redirecting Interswitch ConnectedSwitches and ConnectedSwitchPorts")
 
         agent_bp_URI = agent_bp_obj["@odata.id"]
         redirected_CSP = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
               ['boundaryPorts'][agent_bp_URI]["PeerPortURI"]
         switch_uri_segments = redirected_CSP.split("/")[0:-2]
-        print(f"------ switch_uri_segments {switch_uri_segments}")
         redirected_switch_link=""
         for i in range(1,len(switch_uri_segments)):
             redirected_switch_link = redirected_switch_link +"/" + switch_uri_segments[i] 
-        print(f"------ redirected_switch_link is {redirected_switch_link}")
+        logger.debug(f"------ redirected_switch_link is {redirected_switch_link}")
 
         if "Links" not in agent_bp_obj:
             agent_bp_obj["Links"] = {}
@@ -841,44 +809,37 @@ class RedfishEventHandler(EventHandlerInterface):
             agent_bp_obj["Links"]["ConnectedSwitches"]=[]
         if len(agent_bp_obj["Links"]["ConnectedSwitchPorts"]) >1:
                 logger.error(f"Interswitch Link claims >1 ConnectedSwitchPorts")
-                print(f"------ Interswitch Link claims >1 ConnectedSwitchPorts")
         else: 
             if agent_bp_obj["Links"]["ConnectedSwitchPorts"]:
                 agent_placeholder_CSP = agent_bp_obj["Links"]["ConnectedSwitchPorts"][0]["@odata.id"]
                 agent_bp_obj["Links"]["ConnectedSwitchPorts"][0]["@odata.id"] = redirected_CSP
                 logger.info(f"redirected {agent_placeholder_CSP} to \n------ {redirected_CSP}")
-                print(f"------ redirected {agent_placeholder_CSP} to \n------ {redirected_CSP}")
                 # save the original agent placeholder in the uri_aliasDB
                 uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
                     ['boundaryPorts'][agent_bp_URI]["AgentPeerPortURI"] = agent_placeholder_CSP
             else: # no placeholder links in ConnectedSwitchPorts array
                 agent_bp_obj["Links"]["ConnectedSwitchPorts"].append({"@odata.id":redirected_CSP})
                 logger.info(f"created ConnectedSwitchPort to {redirected_CSP}")
-                print(f"------ created ConnectedSwitchPort to {redirected_CSP}")
 
 
         if len(agent_bp_obj["Links"]["ConnectedSwitches"]) >1:
             logger.error(f"Interswitch Link claims >1 ConnectedSwitches")
-            print(f"------ Interswitch Link claims >1 ConnectedSwitches")
         else:
             if agent_bp_obj["Links"]["ConnectedSwitches"]:
                 agent_placeholder_switch_link = agent_bp_obj["Links"]["ConnectedSwitches"][0]["@odata.id"]
                 agent_bp_obj["Links"]["ConnectedSwitches"][0]["@odata.id"] = redirected_switch_link
                 logger.info(f"redirected {agent_placeholder_switch_link} to \n------ {redirected_switch_link}")
-                print(f"------ redirected {agent_placeholder_switch_link} to \n------ {redirected_switch_link}")
                 # save the original agent placeholder in the uri_aliasDB
                 uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
                     ['boundaryPorts'][agent_bp_URI]["AgentPeerSwitchURI"] = agent_placeholder_switch_link
             else: # no placeholder links in ConnectedSwitches array
                 agent_bp_obj["Links"]["ConnectedSwitches"].append({"@odata.id":redirected_switch_link})
                 logger.info(f"created ConnectedSwitches to {redirected_switch_link}")
-                print(f"------ created ConnectedSwitches to {redirected_switch_link}")
 
 
     def redirectUpstreamPortLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB):
 
         logger.info(f"redirecting UpstreamPort AssociatedEndpoints and ConnectedPorts")
-        print(f"------ redirecting UpstreamPort AssociatedEndpoints and ConnectedPorts")
 
         agent_bp_URI = agent_bp_obj["@odata.id"]
         redirected_CP = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
@@ -888,7 +849,7 @@ class RedfishEventHandler(EventHandlerInterface):
         host_link=""
         for i in range(1,len(host_uri_segments)):
             host_link = host_link +"/" + host_uri_segments[i] 
-        print(f"------ host_link is {host_link}")
+        logger.debug(f"host_link is {host_link}")
 
         # extract the Endpoint URI associated with this parent object
         host_obj = self.storage_backend.read(host_link)
@@ -904,53 +865,45 @@ class RedfishEventHandler(EventHandlerInterface):
 
         if len(agent_bp_obj["Links"]["ConnectedPorts"]) >1:
                 logger.error(f"UpstreamPort Link claims >1 ConnectedPorts")
-                print(f"------ UpstreamPort Link claims >1 ConnectedPorts")
         else: 
             if agent_bp_obj["Links"]["ConnectedPorts"]:
                 agent_placeholder_CP = agent_bp_obj["Links"]["ConnectedPorts"][0]["@odata.id"]
                 agent_bp_obj["Links"]["ConnectedPorts"][0]["@odata.id"] = redirected_CP
                 logger.info(f"redirected {agent_placeholder_CP} to \n------ {redirected_CP}")
-                print(f"------ redirected {agent_placeholder_CP} to \n------ {redirected_CP}")
                 # save the original agent placeholder in the uri_aliasDB
                 uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
                     ['boundaryPorts'][agent_bp_URI]["AgentPeerPortURI"] = agent_placeholder_CP
             else: # no placeholder links in ConnectedSwitchPorts array
                 agent_bp_obj["Links"]["ConnectedPorts"].append({"@odata.id":redirected_CP})
                 logger.info(f"created ConnectedPorts to {redirected_CP}")
-                print(f"------ created ConnectedPorts to {redirected_CP}")
 
 
         if len(agent_bp_obj["Links"]["AssociatedEndpoints"]) >1:
             logger.error(f"UpstreamPort Link claims >1 AssociatedEndpoints")
-            print(f"------ UpstreamPort Link claims >1 AssociatedEndpoints")
         else:
             if agent_bp_obj["Links"]["AssociatedEndpoints"]:
                 agent_placeholder_endpoint = agent_bp_obj["Links"]["AssociatedEndpoints"][0]["@odata.id"]
                 agent_bp_obj["Links"]["AssociatedEndpoints"][0]["@odata.id"] = redirected_endpoint
                 logger.info(f"redirected {agent_placeholder_endpoint} to \n------ {redirected_endpoint}")
-                print(f"------ redirected {agent_placeholder_endpoint} to \n------ {redirected_endpoint}")
                 # save the original agent placeholder in the uri_aliasDB
                 uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
                     ['boundaryPorts'][agent_bp_URI]["AgentPeerEndpointURI"] = agent_placeholder_endpoint
             else: # no placeholder links in AssociatedEndpoints array
                 agent_bp_obj["Links"]["AssociatedEndpoints"].append({"@odata.id":redirected_endpoint})
                 logger.info(f"created AssociatedEndpoints to {redirected_endpoint}")
-                print(f"------ created AssociatedEndpoints to {redirected_endpoint}")
 
     def redirectDownstreamPortLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB):
 
         logger.info(f"redirecting Downstream ConnectedSwitches and ConnectedSwitchPorts")
-        print(f"------ redirecting Downstream ConnectedSwitches and ConnectedSwitchPorts")
 
         agent_bp_URI = agent_bp_obj["@odata.id"]
         redirected_CSP = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
               ['boundaryPorts'][agent_bp_URI]["PeerPortURI"]
         switch_uri_segments = redirected_CSP.split("/")[0:-2]
-        print(f"------ switch_uri_segments {switch_uri_segments}")
         redirected_switch_link=""
         for i in range(1,len(switch_uri_segments)):
             redirected_switch_link = redirected_switch_link +"/" + switch_uri_segments[i] 
-        print(f"------ redirected_switch_link is {redirected_switch_link}")
+        logger.info(f"------ redirected_switch_link is {redirected_switch_link}")
 
         if "Links" not in agent_bp_obj:
             agent_bp_obj["Links"] = {}
@@ -960,38 +913,32 @@ class RedfishEventHandler(EventHandlerInterface):
             agent_bp_obj["Links"]["ConnectedSwitches"]=[]
         if len(agent_bp_obj["Links"]["ConnectedSwitchPorts"]) >1:
                 logger.error(f"Downstream Link claims >1 ConnectedSwitchPorts")
-                print(f"------ Downstream Link claims >1 ConnectedSwitchPorts")
         else: 
             if agent_bp_obj["Links"]["ConnectedSwitchPorts"]:
                 agent_placeholder_CSP = agent_bp_obj["Links"]["ConnectedSwitchPorts"][0]["@odata.id"]
                 agent_bp_obj["Links"]["ConnectedSwitchPorts"][0]["@odata.id"] = redirected_CSP
                 logger.info(f"redirected {agent_placeholder_CSP} to \n------ {redirected_CSP}")
-                print(f"------ redirected {agent_placeholder_CSP} to \n------ {redirected_CSP}")
                 # save the original agent placeholder in the uri_aliasDB
                 uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
                     ['boundaryPorts'][agent_bp_URI]["AgentPeerPortURI"] = agent_placeholder_CSP
             else: # no placeholder links in ConnectedSwitchPorts array
                 agent_bp_obj["Links"]["ConnectedSwitchPorts"].append({"@odata.id":redirected_CSP})
                 logger.info(f"created ConnectedSwitchPort to {redirected_CSP}")
-                print(f"------ created ConnectedSwitchPort to {redirected_CSP}")
 
 
         if len(agent_bp_obj["Links"]["ConnectedSwitches"]) >1:
             logger.error(f"Downstream Link claims >1 ConnectedSwitches")
-            print(f"------ Downstream Link claims >1 ConnectedSwitches")
         else:
             if agent_bp_obj["Links"]["ConnectedSwitches"]:
                 agent_placeholder_switch_link = agent_bp_obj["Links"]["ConnectedSwitches"][0]["@odata.id"]
                 agent_bp_obj["Links"]["ConnectedSwitches"][0]["@odata.id"] = redirected_switch_link
                 logger.info(f"redirected {agent_placeholder_switch_link} to \n------ {redirected_switch_link}")
-                print(f"------ redirected {agent_placeholder_switch_link} to \n------ {redirected_switch_link}")
                 # save the original agent placeholder in the uri_aliasDB
                 uri_aliasDB['Agents_xref_URIs'][owning_agent_id]\
                     ['boundaryPorts'][agent_bp_URI]["AgentPeerSwitchURI"] = agent_placeholder_switch_link
             else: # no placeholder links in ConnectedSwitches array
                 agent_bp_obj["Links"]["ConnectedSwitches"].append({"@odata.id":redirected_switch_link})
                 logger.info(f"created ConnectedSwitches to {redirected_switch_link}")
-                print(f"------ created ConnectedSwitches to {redirected_switch_link}")
 
         
 
@@ -999,13 +946,11 @@ class RedfishEventHandler(EventHandlerInterface):
         try:
             uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
             if os.path.exists(uri_alias_file):
-                print(f"reading alias file {uri_alias_file}")
                 with open(uri_alias_file, 'r') as data_json:
                     uri_aliasDB = json.load(data_json)
                     data_json.close()
-                print(json.dumps(uri_aliasDB, indent = 4))
             else:
-                print(f"alias file {uri_alias_file} not found")
+                logger.error(f"alias file {uri_alias_file} not found")
                 raise Exception 
 
         except:
@@ -1017,10 +962,8 @@ class RedfishEventHandler(EventHandlerInterface):
             uri_aliasDB["Agents_xref_URIs"][owning_agent_id] = {}
             uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"] = {}
             uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"][agent_URI]=sunfish_URI 
-            print(json.dumps(uri_aliasDB, indent=2))
         else:
             uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"][agent_URI]=sunfish_URI 
-            print(json.dumps(uri_aliasDB, indent=2))
 
         if sunfish_URI not in uri_aliasDB["Sunfish_xref_URIs"]["aliases"]:
             uri_aliasDB["Sunfish_xref_URIs"]["aliases"][sunfish_URI] = []
@@ -1035,18 +978,35 @@ class RedfishEventHandler(EventHandlerInterface):
 
         return uri_aliasDB
 
-    def updateIfMergedFabric(self,redfish_obj, sunfish_obj):
-        did_a_merge = False
+    def updateIfMergedFabrics(self,redfish_obj, uploading_agent_uri, sunfish_obj ):
+        # both objects must be Fabric objects
+        # both objects must have Sunfish_RM property
+        logger.info(f"----- merged fabric processed")
+        did_a_merge = True
+        # update sunfish_obj with agent_uri of redfish_obj as a sharer
+        new_obj_owner={"@odata.id":uploading_agent_uri}
+
+        if "FabricSharedWith" in sunfish_obj["Oem"]["Sunfish_RM"]:
+            sunfish_obj["Oem"]["Sunfish_RM"]["FabricSharedWith"].append(new_obj_owner)
+        else:
+            sunfish_obj["Oem"]["Sunfish_RM"]["FabricSharedWith"] = []
+            sunfish_obj["Oem"]["Sunfish_RM"]["FabricSharedWith"].append(new_obj_owner)
+        logger.debug(f"sunfish merged fabric object: {json.dumps(sunfish_obj,indent=2)}")
+        
+        return did_a_merge
+
+    def checkForAliasedFabrics(self, redfish_obj, aggregation_source):
+        found_an_aliased_fabric = False
         obj_type = redfish_obj["@odata.type"].split('.')[0]
         obj_type = obj_type.replace("#","") # #Évent -> Event 
-        print(f"----- potential merged object {redfish_obj['@odata.id']}")
         if obj_type == "Fabric":
-            print(f"----- object is fabric")
+            # TODO:
+            # check all existing Fabrics
+            # look for Fabric UUID in existing Fabrics
+            # compare UUIDs
             if "UUID" in redfish_obj and "UUID" in sunfish_obj:
                 if redfish_obj['UUID'] == sunfish_obj['UUID']:
-                    print(f"----- found merge fabric candidate")
                     did_a_merge = True
-                    # (TODO) more checks ?
                     # update both redfish_obj and sunfish_obj with Fabric xref in Sunfish_RM 
                     new_obj_fabric_xref={"@odata.id":sunfish_obj["@odata.id"]}
                     existing_obj_fabric_xref={"@odata.id":redfish_obj["@odata.id"]}
@@ -1055,21 +1015,18 @@ class RedfishEventHandler(EventHandlerInterface):
                     else:
                         redfish_obj["Oem"]["Sunfish_RM"]["MergedFabrics"] = []
                         redfish_obj["Oem"]["Sunfish_RM"]["MergedFabrics"].append(new_obj_fabric_xref)
-                    print(f"redfish merged fabric object: {json.dumps(redfish_obj,indent=2)}")
 
                     if "MergedFabrics" in sunfish_obj["Oem"]["Sunfish_RM"]:
                         sunfish_obj["Oem"]["Sunfish_RM"]["MergedFabrics"].append(existing_obj_fabric_xref)
                     else:
                         sunfish_obj["Oem"]["Sunfish_RM"]["MergedFabrics"] = []
                         sunfish_obj["Oem"]["Sunfish_RM"]["MergedFabrics"].append(existing_obj_fabric_xref)
-                    print(f"sunfish merged fabric object: {json.dumps(sunfish_obj,indent=2)}")
+                    logger.debug(f"sunfish merged fabric object: {json.dumps(sunfish_obj,indent=2)}")
 
                 else:
-                    print(f"----- not same fabrics")
-                
-
+                    logger.debug(f"----- not same fabrics")
         
-        return did_a_merge
+        return found_an_aliased_fabric
 
     def renameUploadedObject(self,redfish_obj, aggregation_source):
         # redfish_obj uses agent namespace
@@ -1078,25 +1035,19 @@ class RedfishEventHandler(EventHandlerInterface):
         try:
             uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
             if os.path.exists(uri_alias_file):
-                print(f"reading alias file {uri_alias_file}")
                 with open(uri_alias_file, 'r') as data_json:
                     uri_aliasDB = json.load(data_json)
                     data_json.close()
-                print(json.dumps(uri_aliasDB, indent = 4))
             else:
-                print(f"alias file {uri_alias_file} not found")
+                logger.error(f"alias file {uri_alias_file} not found")
                 raise Exception 
 
         except:
             raise Exception
 
-        print(json.dumps(redfish_obj, indent=2))
         agentGiven_obj_path = redfish_obj['@odata.id']
         agentGiven_segments = agentGiven_obj_path.split("/")
         agentGiven_obj_name = agentGiven_segments[-1]
-        #agentGiven_tree_segments = os.path.relpath(redfish_obj['@odata.id'], self.conf['redfish_root']).split("/")
-        print(f"agentGiven tree: {agentGiven_segments}")
-        #agent_file_path = os.path.join(self.conf['redfish_root'], agent_obj_path, 'index.json')
         owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
         # generate a new path and object name 
         logger.debug(f"renaming object: {agentGiven_obj_path}")
@@ -1104,7 +1055,6 @@ class RedfishEventHandler(EventHandlerInterface):
         sunfishGiven_obj_name = "Sunfish_"+owning_agent_id[:4]+"_"+agentGiven_obj_name
         sunfishGiven_obj_path = "/"
         for i in range(1,len(agentGiven_segments)-1):
-            print(agentGiven_segments[i])
             sunfishGiven_obj_path=sunfishGiven_obj_path + agentGiven_segments[i]+"/"
         sunfishGiven_obj_path=sunfishGiven_obj_path + sunfishGiven_obj_name
         # need to check new name is also unused 
@@ -1114,20 +1064,17 @@ class RedfishEventHandler(EventHandlerInterface):
             sunfishGiven_obj_path=sunfishGiven_obj_path.replace(sunfishGiven_obj_name,temp_string) 
 
         #
-        print(sunfishGiven_obj_path)
+        logger.debug(sunfishGiven_obj_path)
         redfish_obj['@odata.id'] = sunfishGiven_obj_path
         if redfish_obj['Id'] == agentGiven_obj_name:
             redfish_obj['Id'] = sunfishGiven_obj_name
-        print(json.dumps(redfish_obj, indent=2))
         # now need to update aliasDB
         if owning_agent_id not in uri_aliasDB["Agents_xref_URIs"]:
             uri_aliasDB["Agents_xref_URIs"][owning_agent_id] = {}
             uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"] = {}
             uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"][agentGiven_obj_path]=sunfishGiven_obj_path 
-            print(json.dumps(uri_aliasDB, indent=2))
         else:
             uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"][agentGiven_obj_path]=sunfishGiven_obj_path 
-            print(json.dumps(uri_aliasDB, indent=2))
 
         if sunfishGiven_obj_path not in uri_aliasDB["Sunfish_xref_URIs"]["aliases"]:
             uri_aliasDB["Sunfish_xref_URIs"]["aliases"][sunfishGiven_obj_path] = []
@@ -1167,26 +1114,18 @@ class RedfishEventHandler(EventHandlerInterface):
         else:
             searching_for_local_portId = 'No local portId' # do NOT use 'None' or ""
 
-        print(f"----- RemoteLinkPartnerId {searching_for_remote_partnerId}")
-        print(f"----- RemotePortId {searching_for_remote_portId}")
-        print(f"----- LocalLinkPartnerId {searching_for_local_partnerId}")
-        print(f"----- LocalPortId {searching_for_local_portId}")
-        print(f"----- searching for match to {searching_port_URI}")
         logger.info(f"searching for match to {searching_port_URI}")
         for agent_id, agent_db in URI_aliasDB['Agents_xref_URIs'].items():
             if agent_id != searching_agent_id and 'boundaryPorts' in agent_db:
-                print(f"----- checking boundaryPorts of {agent_id}")
                 for port_URI, port_details in agent_db['boundaryPorts'].items():
                     # always check if the remote port device ID is found first
-                    print(f"----- port_URI {port_URI}")
-                    print(f"----- port_details {port_details}")
                     if ("LocalLinkPartnerId" in port_details) and \
                         (port_details["LocalLinkPartnerId"] == searching_for_remote_partnerId) and \
                         ("LocalPortId" in port_details) and \
                         (port_details["LocalPortId"] == searching_for_remote_portId):
                         matching_port_URIs.append(port_URI)
-                        # cross reference BOTH agent's boundaryPorts
-                        print(f"----- found a matching port {port_URI}")
+                        # cross reference BOTH agents' boundaryPorts
+                        logger.info(f"----- found a matching port {port_URI}")
                         URI_aliasDB['Agents_xref_URIs'][agent_id]['boundaryPorts']\
                             [port_URI]['PeerPortURI'] = searching_port_URI
                         URI_aliasDB['Agents_xref_URIs'][searching_agent_id]['boundaryPorts']\
@@ -1199,7 +1138,7 @@ class RedfishEventHandler(EventHandlerInterface):
                             (port_details["RemotePortId"] == searching_for_local_portId):
                             matching_port_URIs.append(port_URI)
                             # cross reference BOTH agent's boundaryPorts
-                            print(f"----- found a matching port {port_URI}")
+                            logger.info(f"----- found a matching port {port_URI}")
                             URI_aliasDB['Agents_xref_URIs'][agent_id]['boundaryPorts']\
                                 [port_URI]['PeerPortURI'] = searching_port_URI
                             URI_aliasDB['Agents_xref_URIs'][searching_agent_id]['boundaryPorts']\
@@ -1221,39 +1160,29 @@ class RedfishEventHandler(EventHandlerInterface):
         try:
             uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
             if os.path.exists(uri_alias_file):
-                print(f"reading alias file {uri_alias_file}")
                 with open(uri_alias_file, 'r') as data_json:
                     uri_aliasDB = json.load(data_json)
                     data_json.close()
-                print(json.dumps(uri_aliasDB, indent = 4))
             else:
-                print(f"alias file {uri_alias_file} not found")
+                logger.error(f"alias file {uri_alias_file} not found")
                 raise Exception 
 
         except:
             raise Exception
 
 
-        print(f"---- now processing a boundary port")
         logger.info(f"---- now processing a boundary port")
         obj_type = redfish_obj["@odata.type"].split(".")[0]
         obj_type = obj_type.replace("#","")
         save_alias_file = False 
-        print(f"---- sunfish URI {redfish_obj['@odata.id']}")
-        print(f"---- obj type {obj_type}")
         port_protocol = redfish_obj["PortProtocol"]
         port_type = redfish_obj["PortType"]
         port_bc_flag = redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"]
-        print(f"---- port_bc_flag {port_bc_flag}")
         if obj_type == "Port" and port_bc_flag == "BoundaryPort":
-            print(f"---- CXL BoundaryPort")
             owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
             localPortURI = redfish_obj['@odata.id']
             if port_protocol=="CXL" and (port_type == "InterswitchPort" or \
                     port_type== "UpstreamPort" or port_type== "DownstreamPort"):
-                print(f"---- CXL {port_type}")
-                print(f"---- owning_agent_id {owning_agent_id}")
-                print(f"---- localPortURI {localPortURI}")
                 # create a boundPort entry in uri_aliasDB
                 if owning_agent_id not in uri_aliasDB["Agents_xref_URIs"]:
                     uri_aliasDB["Agents_xref_URIs"][owning_agent_id] = agent_alias_dict
@@ -1277,7 +1206,7 @@ class RedfishEventHandler(EventHandlerInterface):
                 if "CXL" in redfish_obj and "LinkPartnerReceive" in redfish_obj["CXL"]: # rely on 'and' short circuiting
                     remote_link_partner_id = redfish_obj["CXL"]["LinkPartnerReceive"]["LinkPartnerId"]
                     remote_port_id = redfish_obj["CXL"]["LinkPartnerReceive"]["PortId"]
-                    print(f"---- obj link_partner_id {remote_link_partner_id}")
+                    logger.debug(f"---- obj link_partner_id {remote_link_partner_id}")
                     if localPortURI not in uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"]:
                         uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI] = {}
                     uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["boundaryPorts"][localPortURI]\
@@ -1290,17 +1219,15 @@ class RedfishEventHandler(EventHandlerInterface):
                 with open(uri_alias_file,'w') as data_json:
                     json.dump(uri_aliasDB, data_json, indent=4, sort_keys=True)
                     data_json.close()
-                    print(json.dumps(uri_aliasDB, indent=2))
             else:  
-                print(f"---- CXL BoundaryPort found, but not InterswitchPort, UpstreamPort, or DownstreamPort")
+                logger.debug(f"---- CXL BoundaryPort found, but not InterswitchPort, UpstreamPort, or DownstreamPort")
                 pass
         matching_ports = RedfishEventHandler.match_boundary_port(self, owning_agent_id, localPortURI, uri_aliasDB)
         if matching_ports or save_alias_file:
             with open(uri_alias_file,'w') as data_json:
                 json.dump(uri_aliasDB, data_json, indent=4, sort_keys=True)
                 data_json.close()
-                print(json.dumps(uri_aliasDB, indent=2))
-        print(f"----- boundary ports matched {matching_ports}")
+        logger.debug(f"----- boundary ports matched {matching_ports}")
         return
                     
 
