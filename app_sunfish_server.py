@@ -25,7 +25,7 @@ conf = {
 		"fs_root": "Resources",
 		"fs_private": "Resources/SunfishPrivate",
 		"subscribers_root": "EventService/Subscriptions",
-		"clean_resource_path": "../../Sunfish/server_start_Resources" 
+		"clean_resource_path": "../server_start_Resources" 
 	},
 	"handlers": {
 		"subscription_handler": "redfish",
