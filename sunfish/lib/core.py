@@ -232,6 +232,7 @@ class Core:
             str|exception: return the replaced resource or an exception in case of fault.
         """
         object_type = self._get_type(payload, path=path)
+        payload_to_write = payload
         # we assume no changes can be done on collections
         if "Collection" in object_type:
             raise CollectionNotSupported()
@@ -239,9 +240,12 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            self.objects_manager.forward_to_manager(SunfishRequestType.REPLACE, path, payload=payload)
+            #self.objects_manager.forward_to_manager(SunfishRequestType.REPLACE, path, payload=payload)
+            agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.REPLACE, path, payload=payload)
+            if agent_response:
+                payload_to_write = agent_response
             # 3. Execute any custom handler for this object type
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.REPLACE, payload=payload)
+            self.objects_handler.dispatch(object_type, path, SunfishRequestType.REPLACE, payload=payload_to_write)
         except ResourceNotFound:
             logger.error(logger.error(f"The resource to be replaced ({path}) does not exist."))
         except AttributeError:
@@ -249,7 +253,7 @@ class Core:
             logger.debug(f"The object {object_type} does not have a custom handler")
             pass
         # 4. persist change in Sunfish tree
-        return self.storage_backend.replace(payload)
+        return self.storage_backend.replace(payload_to_write)
 
     def patch_object(self, path: str, payload: dict):
         """Calls the correspondent patch function from the backend implementation.
@@ -261,6 +265,7 @@ class Core:
             str|exception: return the updated resource or an exception in case of fault.
         """
         # we assume no changes can be done on collections
+        payload_to_write = payload
         obj = self.storage_backend.read(path)
         object_type = self._get_type(obj, path=path)
         if "Collection" in object_type:
@@ -269,7 +274,10 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            self.objects_manager.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
+            #self.objects_manager.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
+            agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
+            if agent_response:
+                payload_to_write = agent_response
             # 3. Execute any custom handler for this object type
             self.objects_handler.dispatch(object_type, path, SunfishRequestType.PATCH, payload=payload)
         except ResourceNotFound:
@@ -280,7 +288,7 @@ class Core:
             pass
 
         # 4. persist change in Sunfish tree
-        return self.storage_backend.patch(path, payload)
+        return self.storage_backend.patch(path, payload_to_write)
 
     def delete_object(self, path: string):
         """Calls the correspondent remove function from the backend implementation. Checks that the path is valid.
