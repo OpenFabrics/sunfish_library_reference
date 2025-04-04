@@ -1,0 +1,15 @@
+{
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "Fabric Created",
+    "Context": "64c682e9-0535-4103-85d1-7dfb02b802b5",
+    "Events": [ {
+        "Severity": "Ok",
+        "Message": "New Fabric Created ",
+        "MessageId": "ResourceEvent.1.x.ResourceCreated",
+        "MessageArgs": [ ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/CXL"
+        }
+    } ]
+}
+

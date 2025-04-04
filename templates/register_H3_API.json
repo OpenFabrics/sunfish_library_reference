@@ -1,0 +1,15 @@
+{
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "AggregationSourceDiscovered",
+    "Context": "",
+    "Events": [ {
+        "Severity": "Ok",
+        "Message": "A aggregation source of connection method",
+        "MessageId": "ResourceEvent.1.x.AggregationSourceDiscovered",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:5001" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/CXL"
+        }
+    } ]
+}
+
