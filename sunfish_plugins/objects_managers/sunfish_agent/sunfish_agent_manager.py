@@ -125,7 +125,8 @@ class SunfishAgentManager(ObjectManagerInterface):
                     data_json.close()
             else:
                 print(f"alias file {uri_alias_file} not found")
-                raise Exception
+                #no alias file, so we are done, no modifications done
+                return False
 
         except:
             raise Exception
@@ -208,7 +209,7 @@ class SunfishAgentManager(ObjectManagerInterface):
                     data_json.close()
             else:
                 print(f"alias file {uri_alias_file} not found")
-                raise Exception
+                return False
 
         except:
             raise Exception

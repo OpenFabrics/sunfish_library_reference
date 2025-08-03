@@ -7,7 +7,9 @@ all:  build
 build: 
 	poetry build
 
-test:
+test: 
+	rm -rf ./Resources
+	cp -rp ./tests/Resources .
 	python3 -m pytest tests/test_sunfishcore_library.py -vvvv
 
 clean:
