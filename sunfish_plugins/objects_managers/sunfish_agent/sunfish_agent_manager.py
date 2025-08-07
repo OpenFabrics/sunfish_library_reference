@@ -48,12 +48,15 @@ class SunfishAgentManager(ObjectManagerInterface):
             # get the parent path
         logger.debug(f"Checking managing agent for path: {path_to_check}")
         agent = Agent.is_agent_managed(self.core, path_to_check)
-        print(f"managing agent is {agent}")
         if agent:
             logger.debug(f"{path} is managed by an agent, forwarding the request")
-            obj_modified = self.xlateToAgentURIs(payload)
-            # extract restored name from payload
-            restored_path = payload["@odata.id"]
+            # if no payload, cannot xlateToAgent
+            if payload is not None:
+                obj_modified = self.xlateToAgentURIs(payload)
+                # extract restored name from payload
+                restored_path = payload["@odata.id"]
+            else:
+                restored_path = path
             try:
                 agent_response = agent.forward_request(request_type, restored_path, payload=payload)
             except AgentForwardingFailure as e:
@@ -119,12 +122,12 @@ class SunfishAgentManager(ObjectManagerInterface):
         try:
             uri_alias_file = os.path.join(os.getcwd(), self.core.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
             if os.path.exists(uri_alias_file):
-                print(f"reading alias file {uri_alias_file}")
+                logging.debug(f"reading alias file {uri_alias_file}")
                 with open(uri_alias_file, 'r') as data_json:
                     uri_aliasDB = json.load(data_json)
                     data_json.close()
             else:
-                print(f"alias file {uri_alias_file} not found")
+                logging.debug(f"alias file {uri_alias_file} not found")
                 #no alias file, so we are done, no modifications done
                 return False
 

@@ -12,6 +12,7 @@ import requests
 from sunfish.lib.exceptions import AgentForwardingFailure
 from sunfish.models.types import *
 import sunfish
+import pdb
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +83,8 @@ class Agent:
             raise e
 
     def _forward_create_request(self, path: string, payload: dict) -> dict:
+        #pdb.set_trace()
         resource_uri = str(self.aggregation_source["HostName"]) + "/" + path
-        #resource_uri = agent_uri+ "/" + path
 
         logger.debug(f"Forwarding resource CREATE request {resource_uri}")
         try:
