@@ -137,6 +137,7 @@ class TestSunfishcoreLibrary():
     @pytest.fixture(scope="session")
     def httpserver_listen_address(self):
         return ("localhost", 8080)
+        #return ("127.0.0.1", 8080)
 
     def test_event_forwarding(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
@@ -152,7 +153,7 @@ class TestSunfishcoreLibrary():
     def test_event_forwarding_2(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
         resp = self.core.handle_event(tests_template.event_resource_type_system)
-        print('RESP ', resp)
+        #print('RESP ', resp)
         assert len(resp) == 1
 
     def test_resource_created_event_no_context_exception(self):
@@ -163,7 +164,8 @@ class TestSunfishcoreLibrary():
         aggr_source_path = os.path.join(self.conf['redfish_root'], "AggregationService/AggregationSources")
         fabrics_path = os.path.join(self.conf['redfish_root'], "Fabrics")
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/CXL/Connections")
-        httpserver.expect_request(connection_path, method="POST").respond_with_json(
+        connection_uri = os.path.join(self.conf['redfish_root'], "Fabrics/CXL/Connections/12")
+        httpserver.expect_request(connection_uri, method="POST").respond_with_json(
             tests_template.test_connection_cxl_fabric)
 
         resp = self.core.storage_backend.write(tests_template.aggregation_source)

@@ -132,7 +132,9 @@ class RedfishEventHandlersTable:
             
 
         # patch the aggregation_source object in storage with all the new resources found
-        event_handler.core.storage_backend.patch(id, aggregation_source)
+        #pdb.set_trace()
+        event_handler.core.storage_backend.patch(agg_src_path, aggregation_source)
+        logger.debug(f"\n{json.dumps(aggregation_source, indent=4)}")
         return 200
 
     @classmethod

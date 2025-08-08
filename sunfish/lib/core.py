@@ -6,6 +6,7 @@ import os
 import string
 import uuid
 import logging
+import pdb
 
 from sunfish.lib.exceptions import CollectionNotSupported, ResourceNotFound, AgentForwardingFailure, PropertyNotFound
 
@@ -201,16 +202,18 @@ class Core:
             raise CollectionNotSupported()
 
         payload_to_write = payload
+        #pdb.set_trace()
 
         try:
             # 1. check the path target of the operation exists
             # self.storage_backend.read(path)
+            # above done elsewhere, too soon to do here
             # 2. is needed first forward the request to the agent managing the object
             agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.CREATE, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
-            # 3. Execute any custom handler for this object type
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.CREATE, payload=payload)
+            # 3. Execute any custom handler for this object type AFTER Agent mods, if any
+            self.objects_handler.dispatch(object_type, path, SunfishRequestType.CREATE, payload=payload_to_write)
         except ResourceNotFound:
             logger.error("The collection where the resource is to be created does not exist.")
         except AgentForwardingFailure as e:
