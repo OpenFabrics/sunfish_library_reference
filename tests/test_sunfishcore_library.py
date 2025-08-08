@@ -153,7 +153,7 @@ class TestSunfishcoreLibrary():
     def test_event_forwarding_2(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
         resp = self.core.handle_event(tests_template.event_resource_type_system)
-        print('RESP ', resp)
+        #print('RESP ', resp)
         assert len(resp) == 1
 
     def test_resource_created_event_no_context_exception(self):
@@ -169,11 +169,8 @@ class TestSunfishcoreLibrary():
             tests_template.test_connection_cxl_fabric)
 
         resp = self.core.storage_backend.write(tests_template.aggregation_source)
-        print(f'resp1 = {resp}\n')
         resp = self.core.storage_backend.write(tests_template.test_fabric)
-        print(f'resp2 = {resp}\n')
         resp = self.core.create_object(connection_path, tests_template.test_connection_cxl_fabric)
-        print(f'resp3 = {resp}\n')
 
         assert resp == tests_template.test_response_connection_cxl_fabric
 
