@@ -499,12 +499,18 @@ class RedfishEventHandler(EventHandlerInterface):
 
         if response.status_code == 200: # Agent must have returned this object
             redfish_obj = response.json()
+            # however, it must be a minimally valid object
+            # the following test should really be more extensive, but for now:
+            if '@odata.id' in redfish_obj and '@odata.type' in redfish_obj:
 
-            # now rename if necessary and copy object into Sunfish inventory
-            redfish_obj = RedfishEventHandler.createInspectedObject(self,redfish_obj, aggregation_source)
-            if redfish_obj['@odata.id'] not in aggregation_source["Links"]["ResourcesAccessed"]:
-                aggregation_source["Links"]["ResourcesAccessed"].append(redfish_obj['@odata.id'])
-            return redfish_obj
+                # now rename if necessary and copy object into Sunfish inventory
+                redfish_obj = RedfishEventHandler.createInspectedObject(self,redfish_obj, aggregation_source)
+                if redfish_obj['@odata.id'] not in aggregation_source["Links"]["ResourcesAccessed"]:
+                    aggregation_source["Links"]["ResourcesAccessed"].append(redfish_obj['@odata.id'])
+                return redfish_obj
+            else:
+                # we treat this as an unsuccessful retrieval
+                return 
         else: # Agent did not successfully return the obj_id sought
             # we still need to check the obj_id for an aliased parent segment
             # so we detect renamed navigation links 
@@ -517,6 +523,7 @@ class RedfishEventHandler(EventHandlerInterface):
         if '@odata.id' in redfish_obj:
             obj_path = os.path.relpath(redfish_obj['@odata.id'], self.conf['redfish_root'])
         else:
+            # we shouldn't allow an improper object to be passed in, so let's take an exception
             raise PropertyNotFound(f"missing @odata.id in \n {json.dumps(redfish_obj, indent=2)}")
 
         file_path = os.path.join(self.conf['redfish_root'], obj_path)

@@ -66,6 +66,7 @@ class BackendFS(BackendInterface):
         length = len(self.redfish_root)
         id = payload['@odata.id'][length:]  # id without redfish.root (es. /redfish/v1/)
         parent_is_collection = True # default assumption
+        last_parent_to_exist=""
 
         print(f"BackendFS.write called on {id}")
         id = id.split('/')
@@ -73,9 +74,13 @@ class BackendFS(BackendInterface):
             to_check = os.path.join('/'.join(id[:index]), 'index.json')
             to_check = os.path.join(os.getcwd(), self.root, to_check)
             print(f"BackendFS.write():  path to check: {to_check}")
+            if os.path.exists(to_check) is True:
+                # capture this parent path as existing
+                last_parent_to_exist = to_check
             if os.path.exists(to_check) is False:
                 print("path does not exist\n")
-                raise ActionNotAllowed()
+                # nice to know, but NOT an error!
+                #raise ActionNotAllowed()
         '''
             with open(to_check, 'r') as data_json:
                 data = json.load(data_json)
@@ -102,7 +107,7 @@ class BackendFS(BackendInterface):
                                     data_json.close()
 
         '''
-        # we get here only if all grandparent objects exist
+        # we get here only if at least one grandparent objects exist
         last_element = len(id) - 1
         collection_type = id[last_element - 1]
         resource_id = id[last_element]
@@ -112,11 +117,12 @@ class BackendFS(BackendInterface):
             for i in range(0, last_element - 1):
                 full_collection = full_collection + id[i] + '/'
 
-        collection_type = os.path.join(full_collection, collection_type)
+        #collection_type = os.path.join(full_collection, collection_type)
+        full_collection = os.path.join(full_collection, collection_type)
 
         collection_path = os.path.join(os.getcwd(), self.root,
-                                       collection_type)  # collection_path  .../Resources/[folder], collection_type = [folder]
-        parent_path = os.path.dirname(collection_path)  # parent path .../Resources
+                                       full_collection)  
+        parent_path = os.path.dirname(collection_path)  
 
         #pdb.set_trace()
         # check if the directory of the Collection already exists
