@@ -46,8 +46,6 @@ class RedfishEventHandlersTable:
         response = response.json()
 
         ### Save agent registration
-        # connection_method_name = connectionMethodId.split('/')[-1]
-        # connection_method_name = connectionMethodId[:-len(connection_method_name)]
         event_handler.core.storage_backend.write(response)
 
         aggregation_source_id = str(uuid.uuid4())
@@ -85,8 +83,6 @@ class RedfishEventHandlersTable:
         # sunfishAliasDB contains renaming data, the alias xref array, the boundaryLink 
         # data, and assorted flags that are used during upload renaming and final merge of 
         # boundary components based on boundary links.
-
-        #
         #
 
         logger.info("New resource created")
@@ -149,7 +145,6 @@ class RedfishEventHandlersTable:
 		#
         logger.info("TriggerEvent method called")
         file_to_send = event['MessageArgs'][0]  # relative Resource Path
-        #file_path = os.path.join(self.conf['redfish_root'], file_to_send)
         hostname = event['MessageArgs'][1]  # target address
         destination = hostname + "/EventListener" # may match a Subscription object's 'Destination' property
         logger.debug(f"path of file_to_send is {file_to_send}")
@@ -299,7 +294,6 @@ class RedfishEventHandler(EventHandlerInterface):
         Returns:
             list: list of all the reachable subcribers for the event.
         """
-        # resp = 400
         
         for id in list:
             path = os.path.join(self.redfish_root, 'EventService', 'Subscriptions', id)
@@ -403,7 +397,7 @@ class RedfishEventHandler(EventHandlerInterface):
         # this needs to be done on ALL agents, not just the one we just uploaded
         RedfishEventHandler.updateAllAgentsRedirectedLinks(self)
 
-        return visited  #why not the 'fetched' list?
+        return visited  
 
     def create_uploaded_object(self, path: str, payload: dict):
         # before to add the ID and to call the methods there should be the json validation
@@ -411,31 +405,16 @@ class RedfishEventHandler(EventHandlerInterface):
         # generate unique uuid if is not present
         if '@odata.id' not in payload and 'Id' not in payload:
             pass
-            #id = str(uuid.uuid4())
-            #to_add = {
-                #'Id': id,
-                #'@odata.id': os.path.join(path, id)
-            #}
-            #payload.update(to_add)
             raise exception(f"create_uploaded_object: no Redfish ID (@odata.id) found")
 
-        #object_type = self._get_type(payload)
         # we assume agents can upload collections, just not the root level collections
         # we will check for uploaded collections later
-        #if "Collection" in object_type:
-            #raise CollectionNotSupported()
 
         payload_to_write = payload
 
         try:
-            # 1. check the path target of the operation exists
-            # self.storage_backend.read(path)
-            # 2. we don't check the manager; we assume uploading agent is the manager unless it says otherwise
-            #agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.CREATE, path, payload=payload)
-            #if agent_response:
-                #payload_to_write = agent_response
-            # 3. should be no custom handler, this is not a POST, we upload the objects directly into the Redfish database
-            #self.objects_handler.dispatch(object_type, path, SunfishRequestType.CREATE, payload=payload)
+            # this would be another location to verify new object to be written 
+            # meets Sunfish and Redfish requirements
             pass
         except ResourceNotFound:
             logger.error("The collection where the resource is to be created does not exist.")
@@ -445,7 +424,7 @@ class RedfishEventHandler(EventHandlerInterface):
             # The object does not have a handler.
             logger.debug(f"The object {object_type} does not have a custom handler")
             pass
-        # 4. persist change in Sunfish tree
+        # persist change in Sunfish tree
         return self.storage_backend.write(payload_to_write)
 
     def get_aggregation_source(self, aggregation_source):
@@ -500,7 +479,10 @@ class RedfishEventHandler(EventHandlerInterface):
         if response.status_code == 200: # Agent must have returned this object
             redfish_obj = response.json()
             # however, it must be a minimally valid object
-            # the following test should really be more extensive, but for now:
+            # This would be a great spot to insert a call to a Redfish schema validation function
+            # that could return a grading of this new redfish_obj: [PASS, FAIL, CAUTIONS] 
+            # However, we are debugging not just code, but also new Redfish schema,
+            # so for now we just test for two required Redfish Properties to help weed out obviously incorrect responses
             if '@odata.id' in redfish_obj and '@odata.type' in redfish_obj:
 
                 # now rename if necessary and copy object into Sunfish inventory
@@ -608,7 +590,6 @@ class RedfishEventHandler(EventHandlerInterface):
                 if redfish_obj["Oem"]["Sunfish_RM"]["BoundaryComponent"] == "BoundaryPort":
                     RedfishEventHandler.track_boundary_port(self, redfish_obj, aggregation_source)
                 # is this new object a new fabric object with same fabric UUID as an existing fabric?
-                # RedfishEventHandler.checkForAliasedFabrics(self, redfish_obj, aggregation_source)
                 RedfishEventHandler.create_uploaded_object(self, file_path, redfish_obj)
 
         return redfish_obj
@@ -863,7 +844,6 @@ class RedfishEventHandler(EventHandlerInterface):
         # extract the Endpoint URI associated with this parent object
         host_obj = self.storage_backend.read(host_link)
         redirected_endpoint = host_obj["Links"]["Endpoints"][0]["@odata.id"]
-        #redirected_endpoint = "None"  #for now, to test
 
         if "Links" not in agent_bp_obj:
             agent_bp_obj["Links"] = {}

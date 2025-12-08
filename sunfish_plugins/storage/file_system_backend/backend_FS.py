@@ -68,25 +68,32 @@ class BackendFS(BackendInterface):
         parent_is_collection = True # default assumption
         last_parent_to_exist=""
 
-        print(f"BackendFS.write called on {id}")
+        logging.info(f"BackendFS.write called on {id}")
         id = id.split('/')
         for index in range(2, len(id[1:])):
             to_check = os.path.join('/'.join(id[:index]), 'index.json')
             to_check = os.path.join(os.getcwd(), self.root, to_check)
-            print(f"BackendFS.write():  path to check: {to_check}")
+            logging.info(f"BackendFS.write():  path to check: {to_check}")
             if os.path.exists(to_check) is True:
                 # capture this parent path as existing
                 last_parent_to_exist = to_check
             if os.path.exists(to_check) is False:
-                print("path does not exist\n")
+                logging.info("path does not exist\n")
                 # nice to know, but NOT an error!
-                #raise ActionNotAllowed()
+                # Log the situation and continue 
+        
+
+
+        # This particular code block looks unfinished and its purpose/functionality is unknown.
+        # It looks as if part of this block was intended to fill in missing path elements and is redundant
+        # with code just below this block. This block also sets a flag that is never used.  - more analysis required.
+        # 
         '''
             with open(to_check, 'r') as data_json:
                 data = json.load(data_json)
                 data_json.close()
                 if 'Collection' in data["@odata.type"]:
-                    print("path is to a Collection\n")
+                    logging.info("path is to a Collection\n")
                     members = data["Members"]
                     for x in members:
                         if x["@odata.id"] == os.path.join(self.redfish_root, '/'.join(id[:index + 1])):
@@ -101,7 +108,7 @@ class BackendFS(BackendInterface):
                                 present = True
                             else:
                                 el["@odata.id"] = os.path.join(self.redfish_root, '/'.join(id[:index + 1]))
-                                print(f"BackendFS.write of {el['@odata.id']}")
+                                logging.info(f"BackendFS.write of {el['@odata.id']}")
                                 with open(to_check, 'w') as data_json:
                                     json.dump(data, data_json, indent=4, sort_keys=True)
                                     data_json.close()
@@ -117,7 +124,6 @@ class BackendFS(BackendInterface):
             for i in range(0, last_element - 1):
                 full_collection = full_collection + id[i] + '/'
 
-        #collection_type = os.path.join(full_collection, collection_type)
         full_collection = os.path.join(full_collection, collection_type)
 
         collection_path = os.path.join(os.getcwd(), self.root,
@@ -128,22 +134,12 @@ class BackendFS(BackendInterface):
         # check if the directory of the Collection already exists
         if not os.path.exists(collection_path):
             # if parent directory doesn't exist, we assume it is a collection and create the collection
-            print(f"backendFS.write: making collection path directory")
+            logging.info(f"backendFS.write: making collection path directory")
             os.makedirs(collection_path)
 
             # the following line assumes the path element name dictates the collection type
             # it is more proper to examine the @odata.type property of the object being created!
             config = utils.generate_collection(collection_type)
-
-            # if the item to be written is managed by an agent, we want the collection containing it to also be marked
-            # accordingly. We do this only for collections to be created because we assume that if the collection is
-            # there already:
-            #  a. The collection is a first level one that is managed by Sunfish
-            #  b. The collection was previously created during an agent discovery process and therefore already marked
-            # if "Oem" in payload and "Sunfish_RM" in payload["Oem"] and len(id) > 2 :
-            #     if "Oem" not in config:
-            #         config["Oem"] = {}
-            #     config["Oem"]["Sunfish_RM"] = payload["Oem"]["Sunfish_RM"]
 
             ## write file Resources/[folder]/index.json
             with open(os.path.join(collection_path, "index.json"), "w") as fd:
@@ -164,13 +160,13 @@ class BackendFS(BackendInterface):
                 parent_data = json.load(data_json)
                 data_json.close()
             if 'Collection' in parent_data["@odata.type"]:
-                print("parent path is to a Collection\n")
+                logging.info("parent path is to a Collection\n")
                 if utils.check_unique_id(index_path, payload['@odata.id']) is False:
                     raise AlreadyExists(payload['@odata.id'])
                     pass
             else:
-                print("path is to an object\n")
-                parent_is_collection = False  #
+                logging.info("path is to an object\n")
+                parent_is_collection = False  
                 pass
 
 
@@ -240,7 +236,7 @@ class BackendFS(BackendInterface):
         Returns:
             str: id of the updated resource
         """
-        ## code that re-write into file
+        # code that re-write into file
         logging.info('BackendFS patch update called')
 
         # get ID and collection from payload
@@ -280,7 +276,6 @@ class BackendFS(BackendInterface):
             raise ResourceNotFound(resource_id)
 
         result: str = self.read(payload["@odata.id"])
-        # result:str = payload['@odata.id']
 
         return result
 
@@ -297,7 +292,7 @@ class BackendFS(BackendInterface):
         Returns:
             str: confirmation string
         """
-        ## code that removes a file
+        # code that removes a file
         logging.info('BackendFS: remove called')
 
         length = len(self.redfish_root)
