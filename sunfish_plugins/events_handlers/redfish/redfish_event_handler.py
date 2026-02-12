@@ -83,7 +83,7 @@ class RedfishEventHandlersTable:
         # sunfishAliasDB contains renaming data, the alias xref array, the boundaryLink 
         # data, and assorted flags that are used during upload renaming and final merge of 
         # boundary components based on boundary links.
-        #
+        # 
 
         logger.info("New resource created")
 
@@ -111,7 +111,7 @@ class RedfishEventHandlersTable:
         if "@odata.id" not in response:
             # should never hit this!
             logger.warning(f"Resource {id} did not have @odata.id set when retrieved from Agent. Initializing its value with {id}")
-            response["odata.id"] = id
+            response["@odata.id"] = id
 
         # New resource should not exist in Sunfish inventory
         length = len(event_handler.core.conf["redfish_root"])
@@ -132,6 +132,76 @@ class RedfishEventHandlersTable:
         event_handler.core.storage_backend.patch(agg_src_path, aggregation_source)
         logger.debug(f"\n{json.dumps(aggregation_source, indent=4)}")
         return 200
+
+    @classmethod
+    def ResourceChanged(cls, event_handler: EventHandlerInterface, event: dict, context: str):
+        """
+        Handles a ResourceChanged event from an agent.
+        This handler fetches the updated resource from the agent, translates its
+        URI to the corresponding Sunfish URI, and patches the existing object in
+        the database with the new properties.
+        """
+        pdb.set_trace()
+        try:
+            if "OriginOfCondition" not in event or not event["OriginOfCondition"].get("@odata.id"):
+                logger.error("ResourceChanged event is missing OriginOfCondition.")
+                return
+
+            if not context:
+                logger.error("No context (AggregationSource ID) in ResourceChanged event.")
+                return
+
+            aggregation_source_id = context
+            aggregation_source = event_handler.core.storage_backend.read(f"/redfish/v1/AggregationService/AggregationSources/{aggregation_source_id}")
+            host = aggregation_source["HostName"]
+            origin_of_condition = event["OriginOfCondition"]["@odata.id"]
+
+            # Fetch the updated resource from the agent
+            logger.info(f"Fetching updated resource {origin_of_condition} from agent {aggregation_source_id} at {host}")
+            resource_endpoint = host + origin_of_condition
+            response = requests.get(resource_endpoint)
+            if response.status_code != 200:
+                logger.error(f"Could not fetch resource {origin_of_condition} from agent {aggregation_source_id}. Status: {response.status_code}")
+                return
+            updated_resource = response.json()
+
+            # URI Aliasing to find the object in Sunfish
+            sunfish_uri = RedfishEventHandler.xlateToSunfishPath(event_handler.core, origin_of_condition, aggregation_source)
+
+            # Check if object exists before attempting to patch
+            try:
+                event_handler.core.storage_backend.read(sunfish_uri)
+            except NotFound:
+                logger.error(f"ResourceChanged event for a non-existent object. Agent URI: {origin_of_condition}, Sunfish URI: {sunfish_uri}")
+                return
+
+            # Get aliases for this agent to update links in the payload
+            uri_alias_file = os.path.join(os.getcwd(), event_handler.core.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            agent_aliases = {}
+            if os.path.exists(uri_alias_file):
+                with open(uri_alias_file, 'r') as data_json:
+                    uri_aliasDB = json.load(data_json)
+                    owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
+                    if owning_agent_id in uri_aliasDB.get('Agents_xref_URIs', {}) and 'aliases' in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]:
+                        agent_aliases = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['aliases']
+
+            # Update any internal @odata.id links in the fetched payload
+            updated_resource = RedfishEventHandler.update_aliased_links_in_object(event_handler.core, updated_resource, agent_aliases)
+
+            # Boundary Link Processing - check if this update establishes a new boundary link
+            if "Oem" in updated_resource and "Sunfish_RM" in updated_resource["Oem"] and updated_resource["Oem"]["Sunfish_RM"].get("BoundaryComponent") == "BoundaryPort":
+                RedfishEventHandler.track_boundary_port(event_handler.core, updated_resource, aggregation_source)
+
+            # Patch the existing object with the new data
+            logger.info(f"Patching resource at {sunfish_uri}")
+            event_handler.core.storage_backend.patch(sunfish_uri, updated_resource)
+
+            # After patching, check if any cross-agent links need to be updated
+            RedfishEventHandler.updateAllAgentsRedirectedLinks(event_handler.core)
+
+        except Exception:
+            logger.error("Exception in ResourceChanged handler", exc_info=True)
+
 
     @classmethod
     def TriggerEvent(cls, event_handler: EventHandlerInterface, event: dict, context: str):
@@ -199,6 +269,7 @@ class RedfishEventHandler(EventHandlerInterface):
     dispatch_table = {
         "AggregationSourceDiscovered": RedfishEventHandlersTable.AggregationSourceDiscovered,
         "ResourceCreated": RedfishEventHandlersTable.ResourceCreated,
+        "ResourceChanged": RedfishEventHandlersTable.ResourceChanged,
         "TriggerEvent": RedfishEventHandlersTable.TriggerEvent
     }
 
@@ -524,7 +595,7 @@ class RedfishEventHandler(EventHandlerInterface):
                     redfish_obj['Id'] = sunfish_aliased_URI.split("/")[-1]
         logger.debug(f"xlated agent_redfish_URI is {sunfish_aliased_URI}")  
         if 'Collection' in redfish_obj['@odata.type']:
-            logger.debug("This is a collection, ignore it until we need it")
+            logger.info("This is a collection, ignore it until we need it")
             pass
         else:
             # use Sunfish (aliased) paths for conflict testing if it exists
@@ -630,6 +701,34 @@ class RedfishEventHandler(EventHandlerInterface):
                 # next segment
             agent_path = agentFinal_obj_path
         return agent_path
+
+    def update_aliased_links_in_object(self, obj, agent_aliases):
+        """
+        Recursively traverses a dictionary/list object and updates any '@odata.id'
+        links based on the provided agent_aliases mapping.
+        """
+        def findNestedURIs(obj, aliases):
+            if isinstance(obj, list):
+                for item in obj:
+                    findNestedURIs(item, aliases)
+            elif isinstance(obj, dict):
+                for key, value in obj.items():
+                    if key == '@odata.id' and value in aliases:
+                        logger.info(f"Translating internal link {value} to {aliases[value]}")
+                        obj[key] = aliases[value]
+                    # Do not recurse into Sunfish_RM as its paths are not meant to be translated.
+                    elif key != "Sunfish_RM" and isinstance(value, (dict, list)):
+                        findNestedURIs(value, aliases)
+
+        if not isinstance(obj, dict) or "@odata.type" not in obj:
+            return obj
+
+        obj_type = obj["@odata.type"].split('.')[0].replace("#", "")
+        # Do not perform aliasing on the Members array of a Collection, as the Members array
+        # should contain both original and aliased URIs.
+        if "Collection" not in obj_type:
+            findNestedURIs(obj, agent_aliases)
+        return obj
 
     def updateAllAliasedLinks(self,aggregation_source):
         try:
