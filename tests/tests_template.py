@@ -490,3 +490,36 @@ resource_event_no_context = {
         }
     }]
 }
+
+reg_event = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "AggregationSourceDiscovered",
+    "Context": "",
+    "Events": [ {
+        "Severity": "Ok",
+        "Message": "A aggregation source of connection method",
+        "MessageId": "ResourceEvent.1.x.AggregationSourceDiscovered",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/Pytest2"
+        }
+    } ]
+}
+
+connection_method_pytest2 = {
+    "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/Pytest2",
+    "@odata.type": "#ConnectionMethod.v1_1_0.ConnectionMethod",
+    "ConnectionMethodType": "Redfish",
+    "ConnectionMethodVariant": "Contoso",
+    "Id": "Pytest2",
+    "Links": {
+        "AggregationSources": []
+    },
+    "Name": "ConnectionMethod for Agent Pytest2",
+    "Oem": {
+        "Sunfish_RM": {
+            "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions"
+        }
+    }
+}
+

@@ -1,0 +1,14 @@
+{
+    "@odata.id": "/redfish/v1/AggregationService/AggregationSources/feb7bb58-83f2-4945-a798-7c0811a29955",
+    "@odata.type": "#AggregationSource.v1_2_.AggregationSource",
+    "HostName": "http://127.0.0.1:8080",
+    "Id": "feb7bb58-83f2-4945-a798-7c0811a29955",
+    "Links": {
+        "ConnectionMethod": {
+            "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/Pytest1"
+        },
+        "ResourcesAccessed": [
+            "/redfish/v1/Fabrics/Pytest1Fabric"
+        ]
+    }
+}

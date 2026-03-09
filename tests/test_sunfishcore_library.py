@@ -8,6 +8,7 @@ import json
 import os
 import logging
 import pytest
+import pdb
 from pytest_httpserver import HTTPServer
 from sunfish.lib.core import Core
 from sunfish.lib.exceptions import *
@@ -188,6 +189,16 @@ class TestSunfishcoreLibrary():
 
         assert resp == f"Object {connection_path} deleted"
 
+    # test agent register and agent upload event handlers
+    def test_agent_register(self, httpserver: HTTPServer):
+        pdb.set_trace()
+        connection_path = os.path.join(self.conf['redfish_root'], "AggregationService/ConnectionMethods/Pytest2")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.connection_method_pytest2)
+        connection_path = os.path.join(self.conf['redfish_root'], "EventService/Subscriptions/SunfishServer")
+        httpserver.expect_ordered_request(connection_path, method="PATCH").respond_with_data("OK")
+        resp = self.core.handle_event(tests_template.reg_event)
+        
+        assert  len(resp) == 0
     # deletes all the subscriptions
     @pytest.mark.order("last")
     def test_clean_up(self):
