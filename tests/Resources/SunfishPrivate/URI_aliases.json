@@ -1,0 +1,30 @@
+{
+    "Sunfish_xref_URIs" : {
+         "aliases": {
+            "/example/Sunfish/URI": [
+                "/example/Agent1/URI",
+                "/example/Agent2/URI"
+                ],
+            "/another/Sunfish/URI": [
+                "/different/Agent1/URI"
+                ]
+            },
+         "missing": []
+    },
+    
+    "Agents_xref_URIs" : {
+        "exampleAgentContex": {
+            "aliases": {
+                "/example/Agent/URI": "/exampleRenamed/Sunfish/URI",
+                "/another/Agent/URI": "/anotherRenamed/Sunfish/URI"
+            },
+            "foreignBoundaryComponents": {
+                "/example/Agent/boundary/URI": "/exampleRenamed/Sunfish/boundary/URI",
+                "/another/Agent/boundary/URI": "/anotherRenamed/Sunfish/boundary/URI"
+
+            }
+
+        }
+
+    }
+}

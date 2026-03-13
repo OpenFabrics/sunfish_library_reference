@@ -191,14 +191,34 @@ class TestSunfishcoreLibrary():
 
     # test agent register and agent upload event handlers
     def test_agent_register(self, httpserver: HTTPServer):
-        pdb.set_trace()
         connection_path = os.path.join(self.conf['redfish_root'], "AggregationService/ConnectionMethods/Pytest2")
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.connection_method_pytest2)
         connection_path = os.path.join(self.conf['redfish_root'], "EventService/Subscriptions/SunfishServer")
         httpserver.expect_ordered_request(connection_path, method="PATCH").respond_with_data("OK")
         resp = self.core.handle_event(tests_template.reg_event)
+        httpserver.check()
         
         assert  len(resp) == 0
+
+    def test_agent_upload(self, httpserver: HTTPServer):
+        pdb.set_trace()
+        # arm the httpserver with agent's response to GET on OriginOfCondition
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1)
+        # the above is actually retrieved again at start up recursive fetch (upload)
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1)
+        # arm the httpserver with agent's response to GET on subordinate Switches collection
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_collection)
+        # arm the httpserver with agent's response to GET on Switch object  
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_pytest1)
+        resp = self.core.handle_event(tests_template.upload_event)
+        httpserver.check()
+        
+        assert  len(resp) == 0
+
     # deletes all the subscriptions
     @pytest.mark.order("last")
     def test_clean_up(self):
