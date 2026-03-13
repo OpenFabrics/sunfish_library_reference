@@ -40,7 +40,8 @@ class RedfishEventHandlersTable:
         connectionMethodId = event['OriginOfCondition']['@odata.id']
         hostname = event['MessageArgs'][1]  # Agent address
 
-        response = requests.get(f"{hostname}/{connectionMethodId}")
+        #response = requests.get(f"{hostname}/{connectionMethodId}")
+        response = requests.get(f"{hostname}{connectionMethodId}")
         if response.status_code != 200:
             raise Exception("Cannot find ConnectionMethod")
         response = response.json()
