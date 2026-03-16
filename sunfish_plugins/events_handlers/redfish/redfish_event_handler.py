@@ -142,7 +142,7 @@ class RedfishEventHandlersTable:
         URI to the corresponding Sunfish URI, and patches the existing object in
         the database with the new properties.
         """
-        pdb.set_trace()
+        #pdb.set_trace()
         try:
             if "OriginOfCondition" not in event or not event["OriginOfCondition"].get("@odata.id"):
                 logger.error("ResourceChanged event is missing OriginOfCondition.")
