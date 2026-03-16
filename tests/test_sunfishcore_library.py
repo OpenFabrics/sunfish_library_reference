@@ -201,11 +201,11 @@ class TestSunfishcoreLibrary():
         assert  len(resp) == 0
 
     def test_agent_upload(self, httpserver: HTTPServer):
-        pdb.set_trace()
+        #pdb.set_trace()
         # arm the httpserver with agent's response to GET on OriginOfCondition
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1)
-        # the above is actually retrieved again at start up recursive fetch (upload)
+        # the above is actually retrieved again at start of recursive fetch (upload)
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1)
         # arm the httpserver with agent's response to GET on subordinate Switches collection
@@ -216,6 +216,8 @@ class TestSunfishcoreLibrary():
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_pytest1)
         resp = self.core.handle_event(tests_template.upload_event)
         httpserver.check()
+        # TODO
+        # should verify the two objects got uploaded and written to the Sunfish DB
         
         assert  len(resp) == 0
 
