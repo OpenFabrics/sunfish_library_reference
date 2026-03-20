@@ -559,13 +559,16 @@ fabrics_switch_collection = {
     "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches",
     "@odata.type": "#SwitchesCollection.SwitchesCollection",
     "Members": [
+        {
+            "@odata.id" : "/redfish/v1/Fabrics/Pytest1/Switches/Pytest1"
+        }
     ],
-    "Members@odata.count": 0,
+    "Members@odata.count": 1,
     "Name": "Switches Collection"
 }
 
 fabrics_switch_pytest1 = {
-    "@odata.id": "/redfish/v1/Fabrics/CXL/Switches/Pytest1",
+    "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches/Pytest1",
     "@odata.type": "#Switch.v1_9_1.Switch",
     "CXL": {
         "MaxVCSsSupported": 4,
@@ -574,7 +577,7 @@ fabrics_switch_pytest1 = {
             "HDMDecoders": 12
         }
     },
-    "Id": "CXL1",
+    "Id": "Pytest1",
     "Name": "CXL Fabric Switch",
     "Status": {
         "Health": "OK",
