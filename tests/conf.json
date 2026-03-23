@@ -6,7 +6,7 @@
     },
     "backend_conf" : {
         "fs_root": "Resources",
-        "fs_private": "SunfishPrivate",
+        "fs_private": "Resources/SunfishPrivate",
         "subscribers_root": "EventService/Subscriptions"
     },
     "events_handler": {

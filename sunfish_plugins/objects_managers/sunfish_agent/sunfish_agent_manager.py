@@ -221,7 +221,13 @@ class SunfishAgentManager(ObjectManagerInterface):
         try:
             #pdb.set_trace()
             owning_agent_id = agent_obj["Oem"]["Sunfish_RM"]["ManagingAgent"]["@odata.id"].split("/")[-1]
+            # must also have agent_aliases in the database
             agent_aliases = uri_aliasDB["Agents_xref_URIs"][owning_agent_id]["aliases"]
+        except (KeyError, TypeError):
+            # can't rename links without all the above keys in the uri_aliasDB
+            return False
+
+        try:
             object_URI = agent_obj["@odata.id"]
             aliasedNestedPaths=[]
             obj_modified = False

@@ -490,3 +490,101 @@ resource_event_no_context = {
         }
     }]
 }
+
+reg_event = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "AggregationSourceDiscovered",
+    "Context": "",
+    "Events": [ {
+        "Severity": "Ok",
+        "Message": "A aggregation source of connection method",
+        "MessageId": "ResourceEvent.1.x.AggregationSourceDiscovered",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/Pytest2"
+        }
+    } ]
+}
+
+upload_event = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "ResourceCreated",
+    "Context": "feb7bb58-83f2-4945-a798-7c0811a29955",
+    "Events": [ {
+        "Severity": "Ok",
+        "Message": "A new Fabric resource created",
+        "MessageId": "ResourceEvent.1.x.ResourceCreated",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/Pytest1"
+        }
+    } ]
+}
+
+connection_method_pytest2 = {
+    "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/Pytest2",
+    "@odata.type": "#ConnectionMethod.v1_1_0.ConnectionMethod",
+    "ConnectionMethodType": "Redfish",
+    "ConnectionMethodVariant": "Contoso",
+    "Id": "Pytest2",
+    "Links": {
+        "AggregationSources": []
+    },
+    "Name": "ConnectionMethod for Agent Pytest2",
+    "Oem": {
+        "Sunfish_RM": {
+            "@odata.type": "#SunfishExtensions.v1_0_0.ResourceExtensions"
+        }
+    }
+}
+
+fabrics_pytest1 = {
+    "@odata.id": "/redfish/v1/Fabrics/Pytest1",
+    "@odata.type": "#Fabric.v1_3_0.Fabric",
+    "Description": "Pytest CXL Fabric",
+    "FabricType": "CXL",
+    "Id": "CXL",
+    "Name": "CXL Fabric",
+    "Status": {
+        "Health": "OK",
+        "State": "Enabled"
+    },
+    "Switches": {
+        "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches"
+    },
+    "UUID": "1af883ee-d4b7-400d-afb2-536d2c2aea31"
+}
+
+fabrics_switch_collection = {
+    "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches",
+    "@odata.type": "#SwitchesCollection.SwitchesCollection",
+    "Members": [
+        {
+            "@odata.id" : "/redfish/v1/Fabrics/Pytest1/Switches/Pytest1"
+        }
+    ],
+    "Members@odata.count": 1,
+    "Name": "Switches Collection"
+}
+
+fabrics_switch_pytest1 = {
+    "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches/Pytest1",
+    "@odata.type": "#Switch.v1_9_1.Switch",
+    "CXL": {
+        "MaxVCSsSupported": 4,
+        "TotalNumbervPPBs": 4,
+        "VCS": {
+            "HDMDecoders": 12
+        }
+    },
+    "Id": "Pytest1",
+    "Name": "CXL Fabric Switch",
+    "Status": {
+        "Health": "OK",
+        "HealthRollup": "OK",
+        "State": "Enabled"
+    },
+    "SwitchType": "CXL",
+    "UUID": "bfd8ca1e-b5b5-4c0f-a3cf-4d741b85b1fb"
+}
+

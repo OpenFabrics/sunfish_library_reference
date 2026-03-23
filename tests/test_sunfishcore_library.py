@@ -8,6 +8,9 @@ import json
 import os
 import logging
 import pytest
+import shutil
+import pdb
+from pathlib import Path
 from pytest_httpserver import HTTPServer
 from sunfish.lib.core import Core
 from sunfish.lib.exceptions import *
@@ -57,6 +60,15 @@ class TestSunfishcoreLibrary():
         logging.info('Deleting ', system_url)
         self.core.delete_object(system_url)
         assert test_utils.check_delete(system_url) == True
+
+    # reset the test directory
+    def test_reset_directories(self):
+        base_path = Path(__file__).parent.parent
+        src = base_path / "tests/Resources"
+        dst = base_path / "Resources"
+        # Copy the test tree over the existing Resources tree
+        shutil.rmtree(dst, ignore_errors=True)
+        shutil.copytree(src, dst, dirs_exist_ok=True) 
 
     def test_delete_exception(self):
         system_url = os.path.join(self.conf["redfish_root"], 'Systems', '-1')
@@ -187,6 +199,38 @@ class TestSunfishcoreLibrary():
         resp = self.core.delete_object(connection_path)
 
         assert resp == f"Object {connection_path} deleted"
+
+    # test agent register and agent upload event handlers
+    def test_agent_register(self, httpserver: HTTPServer):
+        connection_path = os.path.join(self.conf['redfish_root'], "AggregationService/ConnectionMethods/Pytest2")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.connection_method_pytest2)
+        connection_path = os.path.join(self.conf['redfish_root'], "EventService/Subscriptions/SunfishServer")
+        httpserver.expect_ordered_request(connection_path, method="PATCH").respond_with_data("OK")
+        resp = self.core.handle_event(tests_template.reg_event)
+        assert len(httpserver.log) == 2
+        
+        assert  len(resp) == 0
+
+    def test_agent_upload(self, httpserver: HTTPServer):
+        #pdb.set_trace()
+        # arm the httpserver with agent's response to GET on OriginOfCondition
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1)
+        # the above is actually retrieved again at start of recursive fetch (upload)
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1)
+        # arm the httpserver with agent's response to GET on subordinate Switches collection
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_collection)
+        # arm the httpserver with agent's response to GET on Switch object  
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_pytest1)
+        resp = self.core.handle_event(tests_template.upload_event)
+        assert len(httpserver.log) == 4
+        # TODO
+        # should verify the two objects got uploaded and written to the Sunfish DB
+        
+        assert  len(resp) == 0
 
     # deletes all the subscriptions
     @pytest.mark.order("last")
