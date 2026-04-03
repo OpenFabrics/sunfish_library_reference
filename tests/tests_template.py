@@ -588,3 +588,29 @@ fabrics_switch_pytest1 = {
     "UUID": "bfd8ca1e-b5b5-4c0f-a3cf-4d741b85b1fb"
 }
 
+update_switch = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "ResourceChanged",
+    "Context": "feb7bb58-83f2-4945-a798-7c0811a29955",
+    "Events": [ {
+        "Severity": "Ok",
+        "Message": "A new Status for Switch resource",
+        "MessageId": "ResourceEvent.1.x.ResourceChanged",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches/Pytest1"
+        }
+    } ]
+}
+
+fabrics_switch_pytest1_modified = {
+    "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches/Pytest1",
+    "@odata.type": "#Switch.v1_9_1.Switch",
+    "Id": "Pytest1",
+    "Status": {
+        "Health": "OK",
+        "HealthRollup": "OK",
+        "State": "Disabled"
+    }
+}
+

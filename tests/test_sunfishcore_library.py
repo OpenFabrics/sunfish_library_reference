@@ -164,6 +164,7 @@ class TestSunfishcoreLibrary():
 
     def test_event_forwarding_2(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
+        #pdb.set_trace()
         resp = self.core.handle_event(tests_template.event_resource_type_system)
         #print('RESP ', resp)
         assert len(resp) == 1
@@ -206,6 +207,7 @@ class TestSunfishcoreLibrary():
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.connection_method_pytest2)
         connection_path = os.path.join(self.conf['redfish_root'], "EventService/Subscriptions/SunfishServer")
         httpserver.expect_ordered_request(connection_path, method="PATCH").respond_with_data("OK")
+        pdb.set_trace()
         resp = self.core.handle_event(tests_template.reg_event)
         assert len(httpserver.log) == 2
         
@@ -230,6 +232,21 @@ class TestSunfishcoreLibrary():
         # TODO
         # should verify the two objects got uploaded and written to the Sunfish DB
         
+        assert  len(resp) == 0
+
+    
+    def test_event_resourceChanged(self, httpserver: HTTPServer):
+        # requires test_agent_upload runs successfully before calling this test
+        pdb.set_trace()
+        # arm the httpserver with agent's response to GET on OriginOfCondition
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_pytest1_modified)
+        resp = self.core.handle_event(tests_template.update_switch)
+        assert len(httpserver.log) == 1
+        # TODO
+        # should verify the two objects got uploaded and written to the Sunfish DB
+        
+        # handle_event() will return list of UUIDs to which the event was forwarded
         assert  len(resp) == 0
 
     # deletes all the subscriptions
