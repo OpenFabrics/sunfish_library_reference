@@ -308,7 +308,7 @@ class RedfishEventHandler(EventHandlerInterface):
 
             if prefix in subscriptions["RegistryPrefixes"]:
                 for id in subscriptions["RegistryPrefixes"][prefix]["exclude"]:
-                    to_exclude.extend(id)
+                    to_exclude.append(id)
             if messageId in subscriptions["MessageIds"]:
                 for id in subscriptions["MessageIds"][messageId]["exclude"]:
                     to_exclude.append(id)
