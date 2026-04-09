@@ -251,6 +251,24 @@ sub3 = {
     "SubordinateResources": "True"
 }
 
+
+sub4 = {
+    "@odata.type": "#EventDestination.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "RegistryPrefixes": [
+        "ResourceEvent"
+    ]
+    ,
+    "ExcludeRegistryPrefixes": [
+        "Basic"
+    ],
+    "OriginResources": [{
+        "@odata.id": "/redfish/v1/Fabrics/Pytest1"
+    }],
+    "SubordinateResources": "True"
+}
+
 wrong_sub = {
     "@odata.type": "#EventDestination.v1_13_2.EventDestination",
     "Destination": "http://wrong_dest:8080",
