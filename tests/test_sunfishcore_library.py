@@ -164,7 +164,6 @@ class TestSunfishcoreLibrary():
 
     def test_event_forwarding_2(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
-        #pdb.set_trace()
         resp = self.core.handle_event(tests_template.event_resource_type_system)
         #print('RESP ', resp)
         assert len(resp) == 1
@@ -207,14 +206,12 @@ class TestSunfishcoreLibrary():
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.connection_method_pytest2)
         connection_path = os.path.join(self.conf['redfish_root'], "EventService/Subscriptions/SunfishServer")
         httpserver.expect_ordered_request(connection_path, method="PATCH").respond_with_data("OK")
-        #pdb.set_trace()
         resp = self.core.handle_event(tests_template.reg_event)
         assert len(httpserver.log) == 2
         
         assert  len(resp) == 0
 
     def test_agent_upload(self, httpserver: HTTPServer):
-        #pdb.set_trace()
         # arm the httpserver with agent's response to GET on OriginOfCondition
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1)
@@ -237,7 +234,6 @@ class TestSunfishcoreLibrary():
     
     def test_event_resourceChanged(self, httpserver: HTTPServer):
         # requires test_agent_upload runs successfully before calling this test
-        pdb.set_trace()
         # install another subscriber for ResourceEvents
         path = os.path.join(self.conf['redfish_root'], self.conf["backend_conf"]["subscribers_root"])
         assert self.core.create_object(path, tests_template.sub4)

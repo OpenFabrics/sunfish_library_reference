@@ -364,10 +364,10 @@ class RedfishEventHandler(EventHandlerInterface):
             ResourceNotFound: if it is not possible to get the subscription's details.
 
         Returns:
-            list: list of all the reachable subcribers for the event.
+            list: (modified) list of all the reachable subcribers for the event.
         """
         
-        for id in list:
+        for id in list[:]:  #must use a slice-copy of list since we modify list in the loop
             path = os.path.join(self.redfish_root, 'EventService', 'Subscriptions', id)
             try:
                 data = self.core.storage_backend.read(path)
@@ -377,6 +377,7 @@ class RedfishEventHandler(EventHandlerInterface):
                 logger.warning(f"Unable to contact event destination {id} for event , skipping.")
                 logger.warning(f"Event log: \n{json.dumps(payload, indent=2)}")
                 list.remove(id)
+                continue  # don't quit on the rest of the original list
             except ResourceNotFound:
                 raise ResourceNotFound(path)
 
