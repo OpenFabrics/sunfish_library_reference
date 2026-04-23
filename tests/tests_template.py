@@ -269,6 +269,24 @@ sub4 = {
     "SubordinateResources": "True"
 }
 
+
+sub5 = {
+    "@odata.type": "#EventDestination.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "RegistryPrefixes": [
+        "ResourceEvent"
+    ]
+    ,
+    "ExcludeRegistryPrefixes": [
+        "Basic"
+    ],
+    "OriginResources": [{
+        "@odata.id": "/redfish/v1/Fabrics"
+    }],
+    "SubordinateResources": "True"
+}
+
 wrong_sub = {
     "@odata.type": "#EventDestination.v1_13_2.EventDestination",
     "Destination": "http://wrong_dest:8080",
@@ -573,6 +591,24 @@ fabrics_pytest1 = {
     "UUID": "1af883ee-d4b7-400d-afb2-536d2c2aea31"
 }
 
+
+fabrics_pytest2 = {
+    "@odata.id": "/redfish/v1/Fabrics/Pytest2",
+    "@odata.type": "#Fabric.v1_3_0.Fabric",
+    "Description": "Pytest CXL Fabric",
+    "FabricType": "CXL",
+    "Id": "CXL",
+    "Name": "CXL Fabric",
+    "Status": {
+        "Health": "OK",
+        "State": "Enabled"
+    },
+    "Switches": {
+        "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches"
+    },
+    "UUID": "1af883ee-d4b7-400d-afb2-536d2c2aea32"
+}
+
 fabrics_switch_collection = {
     "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches",
     "@odata.type": "#SwitchesCollection.SwitchesCollection",
@@ -604,6 +640,27 @@ fabrics_switch_pytest1 = {
     },
     "SwitchType": "CXL",
     "UUID": "bfd8ca1e-b5b5-4c0f-a3cf-4d741b85b1fb"
+}
+
+fabrics_switch_pytest2 = {
+    "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches/Pytest2",
+    "@odata.type": "#Switch.v1_9_1.Switch",
+    "CXL": {
+        "MaxVCSsSupported": 4,
+        "TotalNumbervPPBs": 4,
+        "VCS": {
+            "HDMDecoders": 12
+        }
+    },
+    "Id": "Pytest2",
+    "Name": "CXL Fabric Switch",
+    "Status": {
+        "Health": "OK",
+        "HealthRollup": "OK",
+        "State": "Enabled"
+    },
+    "SwitchType": "CXL",
+    "UUID": "bfd8ca1e-b5b5-4c0f-a3cf-4d741b85b100"
 }
 
 update_switch = {

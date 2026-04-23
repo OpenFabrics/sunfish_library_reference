@@ -251,6 +251,15 @@ class TestSunfishcoreLibrary():
         # handle_event() will return list of UUIDs to which the event was forwarded
         assert  len(resp) == 1
 
+
+    def test_client_mods_trigger_events(self, httpserver: HTTPServer):
+        # install another subscriber for ResourceEvents
+        #path = os.path.join(self.conf['redfish_root'], self.conf["backend_conf"]["subscribers_root"])
+        #assert self.core.create_object(path, tests_template.sub4)
+        switch_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest2")
+        assert self.core.create_object(switch_path, tests_template.fabrics_pytest2)
+        
+
     # deletes all the subscriptions
     @pytest.mark.order("last")
     def test_clean_up(self):

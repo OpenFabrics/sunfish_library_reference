@@ -15,6 +15,7 @@ import requests
 from sunfish.events.event_handler_interface import EventHandlerInterface
 from sunfish.events.redfish_subscription_handler import subscriptions
 from sunfish.lib.exceptions import *
+from typing import Optional
 
 logger = logging.getLogger("RedfishEventHandler")
 logging.basicConfig(level=logging.DEBUG)
@@ -1320,6 +1321,56 @@ class RedfishEventHandler(EventHandlerInterface):
         logger.debug(f"----- boundary ports matched {matching_ports}")
         return
                     
+    def resource_event_builder(self, request_type: 'sunfish.models.types.SunfishRequestType', path: str, payload: dict = None) -> Optional[dict]:
+        pdb.set_trace()
+        ResourceCreated_template = {
+            "@odata.type": "#Event.v1_7_0.Event",
+            "Name": "New Resource Created",
+            "Context": "None",
+            "Events": [ {
+                "Severity": "Ok",
+                "Message": "New Resource Created ",
+                "MessageId": "ResourceEvent.1.x.ResourceCreated",
+                "MessageArgs": [ ],
+                "OriginOfCondition": {
+                    "@odata.id": "None"
+                }
+            } ]
+        }
+
+        ResourceChanged_template = {
+            "@odata.type": "#Event.v1_7_0.Event",
+            "Name": "New Resource Created",
+            "Context": "None",
+            "Events": [ {
+                "Severity": "Ok",
+                "Message": "Existing Resource Changed ",
+                "MessageId": "ResourceEvent.1.x.ResourceChanged",
+                "MessageArgs": [ ],
+                "OriginOfCondition": {
+                    "@odata.id": "None"
+                }
+            } ]
+        }
+
+        ResourceDeleted = {
+            "@odata.type": "#Event.v1_7_0.Event",
+            "Name": "New Resource Deleted",
+            "Context": "None",
+            "Events": [ {
+                "Severity": "Ok",
+                "Message": "New Resource Deleted ",
+                "MessageId": "ResourceEvent.1.x.ResourceDeleted",
+                "MessageArgs": [ ],
+                "OriginOfCondition": {
+                    "@odata.id": "None"
+                }
+            } ]
+        }
+
+        print(f"Event_Builder: called on {path} with payload {payload}")
+
+        return
 
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):

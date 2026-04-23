@@ -223,7 +223,11 @@ class Core:
             logger.debug(f"The object {object_type} does not have a custom handler")
             pass
         # 4. persist change in Sunfish tree
-        return self.storage_backend.write(payload_to_write)
+        payload_written = self.storage_backend.write(payload_to_write)
+        # 5. create appropriate Event and send to subscribed EventDestinations
+        self.event_handler.resource_event_builder(SunfishRequestType.CREATE, path, payload=payload_written)
+
+        return payload_written
 
     def replace_object(self, path: str, payload: dict):
         """Calls the correspondent replace function from the backend implementation.
