@@ -234,6 +234,9 @@ class TestSunfishcoreLibrary():
     
     def test_event_resourceChanged(self, httpserver: HTTPServer):
         # requires test_agent_upload runs successfully before calling this test
+        # arm the httpserver with subscriber's response to POST of the create_object of subscription sub4
+        connection_path = os.path.join(self.conf['redfish_root'], "/")
+        httpserver.expect_ordered_request(connection_path, method="POST").respond_with_data("OK")
         # install another subscriber for ResourceEvents
         path = os.path.join(self.conf['redfish_root'], self.conf["backend_conf"]["subscribers_root"])
         assert self.core.create_object(path, tests_template.sub4)
@@ -244,7 +247,7 @@ class TestSunfishcoreLibrary():
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches/Pytest1")
         httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
         resp = self.core.handle_event(tests_template.update_switch)
-        assert len(httpserver.log) == 2
+        assert len(httpserver.log) == 3
         # TODO
         # should verify the two objects got uploaded and written to the Sunfish DB
         

@@ -225,7 +225,9 @@ class Core:
         # 4. persist change in Sunfish tree
         payload_written = self.storage_backend.write(payload_to_write)
         # 5. create appropriate Event and send to subscribed EventDestinations
-        self.event_handler.resource_event_builder(SunfishRequestType.CREATE, path, payload=payload_written)
+        generate_resource_event = self.event_handler.resource_event_builder(SunfishRequestType.CREATE, path, payload=payload_written)
+        self.event_handler.new_event(generate_resource_event)
+        
 
         return payload_written
 

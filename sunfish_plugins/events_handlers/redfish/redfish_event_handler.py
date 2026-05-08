@@ -15,6 +15,7 @@ import requests
 from sunfish.events.event_handler_interface import EventHandlerInterface
 from sunfish.events.redfish_subscription_handler import subscriptions
 from sunfish.lib.exceptions import *
+from sunfish.models.types import *
 from typing import Optional
 
 logger = logging.getLogger("RedfishEventHandler")
@@ -1321,56 +1322,71 @@ class RedfishEventHandler(EventHandlerInterface):
         logger.debug(f"----- boundary ports matched {matching_ports}")
         return
                     
-    def resource_event_builder(self, request_type: 'sunfish.models.types.SunfishRequestType', path: str, payload: dict = None) -> Optional[dict]:
+    def resource_event_builder(self, request_type: 'sunfish.models.types.SunfishRequestType', path: str, payload: Optional[dict] = None) -> Optional[dict]:
         pdb.set_trace()
         ResourceCreated_template = {
             "@odata.type": "#Event.v1_7_0.Event",
             "Name": "New Resource Created",
-            "Context": "None",
+            "Context": "",
             "Events": [ {
                 "Severity": "Ok",
                 "Message": "New Resource Created ",
                 "MessageId": "ResourceEvent.1.x.ResourceCreated",
                 "MessageArgs": [ ],
                 "OriginOfCondition": {
-                    "@odata.id": "None"
+                    "@odata.id": ""
                 }
             } ]
         }
 
         ResourceChanged_template = {
             "@odata.type": "#Event.v1_7_0.Event",
-            "Name": "New Resource Created",
-            "Context": "None",
+            "Name": "Resource Changed",
+            "Context": "",
             "Events": [ {
                 "Severity": "Ok",
                 "Message": "Existing Resource Changed ",
                 "MessageId": "ResourceEvent.1.x.ResourceChanged",
                 "MessageArgs": [ ],
                 "OriginOfCondition": {
-                    "@odata.id": "None"
+                    "@odata.id": ""
                 }
             } ]
         }
 
-        ResourceDeleted = {
+        ResourceDeleted_template = {
             "@odata.type": "#Event.v1_7_0.Event",
-            "Name": "New Resource Deleted",
-            "Context": "None",
+            "Name": "Resource Deleted",
+            "Context": "",
             "Events": [ {
                 "Severity": "Ok",
-                "Message": "New Resource Deleted ",
+                "Message": "Existing Resource Deleted ",
                 "MessageId": "ResourceEvent.1.x.ResourceDeleted",
                 "MessageArgs": [ ],
                 "OriginOfCondition": {
-                    "@odata.id": "None"
+                    "@odata.id": ""
                 }
             } ]
         }
 
         print(f"Event_Builder: called on {path} with payload {payload}")
+        if request_type == SunfishRequestType.DELETE:
+            ResourceDeleted_template["Events"][0]["OriginOfCondition"]\
+                ["@odata.id"]=path
+            return ResourceDeleted_template
+        elif payload is not None: # need a payload for these request types
+            if request_type == SunfishRequestType.CREATE:
+                ResourceCreated_template["Events"][0]["OriginOfCondition"]\
+                    ["@odata.id"]=payload["@odata.id"]
+                return ResourceCreated_template
+            elif request_type == SunfishRequestType.REPLACE or request_type == SunfishRequestType.PATCH:
+                ResourceChanged_template["Events"][0]["OriginOfCondition"]\
+                    ["@odata.id"]=payload["@odata.id"]
+                return ResourceChanged_template
 
-        return
+        # no payload, or no proper request_type, so no event to return
+
+        return 
 
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
