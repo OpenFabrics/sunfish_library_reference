@@ -31,10 +31,11 @@ class RedfishEventHandlersTable:
         # The arguments of the event message are:
         #   - Arg0: "Redfish"
         #   - Arg1: "agent_ip:port"
-        # I am also assuming that the agent name to be used is contained in the OriginOfCondifiton field of the event as in the below example:
+        # I am also assuming that the ConnectionMethod to be used is contained in the OriginOfCondifiton field of the event 
+        # as in the below example:
         # {
         #    "OriginOfCondition: [
-        #           "@odata.id" : "/redfish/v1/AggregationService/AggregationSource/AgentName"
+        #           "@odata.id" : "/redfish/v1/AggregationService/ConnectionMethods/AgentName"
         #    ]"
         # }
         logger.info("AggregationSourceDiscovered method called")
@@ -201,6 +202,7 @@ class RedfishEventHandlersTable:
 
             # After patching, check if any cross-agent links need to be updated
             RedfishEventHandler.updateAllAgentsRedirectedLinks(event_handler.core)
+            return 200
 
         except Exception:
             logger.error("Exception in ResourceChanged handler", exc_info=True)

@@ -234,34 +234,36 @@ class TestSunfishcoreLibrary():
     
     def test_event_resourceChanged(self, httpserver: HTTPServer):
         # requires test_agent_upload runs successfully before calling this test
+        #
+        # This test checks two things:
+        #   1) when a new Subscription is created, Sunfish core creates a ResourceCreated Event
+        #       which will get forwarded to the new subscriber
+        #   2) then when a ResourceUpdated event is sent to Sunfish core, 
+        #       Sunfish fetches the updated resource (OriginOfCondition)
+        #       and also sends a ResourceUpdated event to the new subscriber
+        #
         # arm the httpserver with subscriber's response to POST of the create_object of subscription sub4
         connection_path = os.path.join(self.conf['redfish_root'], "/")
         httpserver.expect_ordered_request(connection_path, method="POST").respond_with_data("OK")
-        # install another subscriber for ResourceEvents
+        # install another subscriber for ResourceEvents, (this will also trigger a ResourceCreated event!)
         path = os.path.join(self.conf['redfish_root'], self.conf["backend_conf"]["subscribers_root"])
         assert self.core.create_object(path, tests_template.sub4)
+
         # arm the httpserver with agent's response to GET on OriginOfCondition
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches/Pytest1")
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_pytest1_modified)
         # arm the httpserver with subscriber's response to POST on Eventlistener
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches/Pytest1")
         httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        # send Sunfish core a ResourceUpdated event naming a Switch as OriginOfCondition
         resp = self.core.handle_event(tests_template.update_switch)
         assert len(httpserver.log) == 3
         # TODO
-        # should verify the two objects got uploaded and written to the Sunfish DB
+        # should verify the updated switch got uploaded and written to the Sunfish DB
         
         # handle_event() will return list of UUIDs to which the event was forwarded
         assert  len(resp) == 1
 
-
-    def test_client_mods_trigger_events(self, httpserver: HTTPServer):
-        # install another subscriber for ResourceEvents
-        #path = os.path.join(self.conf['redfish_root'], self.conf["backend_conf"]["subscribers_root"])
-        #assert self.core.create_object(path, tests_template.sub4)
-        switch_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest2")
-        assert self.core.create_object(switch_path, tests_template.fabrics_pytest2)
-        
 
     # deletes all the subscriptions
     @pytest.mark.order("last")
