@@ -358,10 +358,10 @@ class Core:
             except PropertyNotFound as e:
                 logger.warning(repr(e))
                 raise e
-        # if not handled by Sunfish, forward the original event to any subscribers
+        # if not handled by Sunfish, do NOT forward the original event to any subscribers
         forwarded_to = []
-        if sunfish_handled is False:
-            forwarded_to =  self.event_handler.new_event(payload)
+        #if sunfish_handled is False:
+        #    forwarded_to =  self.event_handler.new_event(payload)
         return forwarded_to
 
     def _get_type(self, payload: dict, path: str = None):
