@@ -90,6 +90,7 @@ class RedfishEventHandlersTable:
         # 
 
         logger.info("New resource created")
+        new_resourceEvent_URIs = {}
 
         id = event['OriginOfCondition']['@odata.id']  # ex:  /redfish/v1/Fabrics/CXL
         logger.info(f"aggregation_source's redfish URI: {id}")
@@ -123,16 +124,25 @@ class RedfishEventHandlersTable:
         fs_full_path = os.path.join(os.getcwd(), event_handler.core.conf["backend_conf"]["fs_root"], 
                 resource, 'index.json')
         if not os.path.exists(fs_full_path):
-            RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
+            new_resourceEvent_URIs = RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
         else:  
             logger.warning(f"resource to create: {id} already exists.")
             # could be a second agent with naming conflicts, or same agent with duplicate
             # still run the inspection process on it to find cause of warning
-            RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
-            
+            new_resourceEvent_URIs = RedfishEventHandler.bfsInspection(event_handler.core, response, aggregation_source)
+        # need to parse the new_resourceEvent_URIs{} for URIs to objects created, changed or deleted
+        try:
+            #pdb.set_trace()
+            print(json.dumps(new_resourceEvent_URIs, indent=4))
+            notified_list =[]
+            #notified_list = RedfishEventHandler.process_new_resourceEvents(event_handler.core, new_resourceEvent_URIs)
+            notified_list = RedfishEventHandler.process_new_resourceEvents(event_handler, new_resourceEvent_URIs)
+            pass
+        except Exception as e:
+            logging.error(f"Sunfish Internal Event Generation function Error", exc_info=True)
+            pass
 
         # patch the aggregation_source object in storage with all the new resources found
-        #pdb.set_trace()
         event_handler.core.storage_backend.patch(agg_src_path, aggregation_source)
         logger.debug(f"\n{json.dumps(aggregation_source, indent=4)}")
         return 200
@@ -302,6 +312,7 @@ class RedfishEventHandler(EventHandlerInterface):
         Args:
             payload (dict): event received.
         """
+        #pdb.set_trace()
         for event in payload["Events"]:
             prefix = event["MessageId"].split('.')[0]
             messageId = event["MessageId"]
@@ -323,14 +334,14 @@ class RedfishEventHandler(EventHandlerInterface):
             if "OriginOfCondition" in event:
                 origin = event["OriginOfCondition"]["@odata.id"]
                 try:
-                    type = self.check_data_type(origin)
+                    type = RedfishEventHandler.check_data_type(self, origin)
                 except ResourceNotFound as e:
                     raise ResourceNotFound(e.resource_id)
                 if type in subscriptions["ResourceTypes"]:
                     to_forward.extend(subscriptions["ResourceTypes"][type])
                 if origin in subscriptions["OriginResources"]:
                     to_forward.extend(subscriptions["OriginResources"][origin])
-                sub = self.check_subdirs(origin)
+                sub = RedfishEventHandler.check_subdirs(self, origin)
                 to_forward.extend(sub)
 
             if prefix in subscriptions["RegistryPrefixes"]:
@@ -344,12 +355,14 @@ class RedfishEventHandler(EventHandlerInterface):
             set2 = set(to_exclude)
             to_forward = list(set1 - set2)
 
-            return self.forward_event(to_forward, payload)
+            return RedfishEventHandler.forward_event(self, to_forward, payload)
         
     def check_data_type(self, origin):
         length = len(self.redfish_root)
+        #length = len(self.conf["redfish_root"])
         resource = origin[length:]
         path = os.path.join(self.redfish_root, resource)
+        #path = os.path.join(self.conf["redfish_root"], resource)
         try:
             data = self.core.storage_backend.read(path)
         except ResourceNotFound as e:
@@ -373,8 +386,12 @@ class RedfishEventHandler(EventHandlerInterface):
         
         for id in list[:]:  #must use a slice-copy of list since we modify list in the loop
             path = os.path.join(self.redfish_root, 'EventService', 'Subscriptions', id)
+            #path = os.path.join(self.conf["redfish_root"], 'EventService', 'Subscriptions', id)
             try:
                 data = self.core.storage_backend.read(path)
+                # use the context found in the subscription, if there is one
+                if "Context" in data:
+                    payload["Context"] = data["Context"]  
                 resp = requests.post(data['Destination'], json=payload)
                 resp.raise_for_status()
             except (requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
@@ -429,6 +446,9 @@ class RedfishEventHandler(EventHandlerInterface):
         fetched = []
         notfound = []
         uploaded = []
+        updated = []
+        deleted = []
+        modified = {}
         visited.append(node['@odata.id'])
         queue.append(node['@odata.id'])
 
@@ -466,15 +486,26 @@ class RedfishEventHandler(EventHandlerInterface):
         logger.info(json.dumps(sorted(fetched),indent = 4))
         logger.info("\n\nAgent did not return objects for the following URIs:\n")
         logger.info(json.dumps(sorted(notfound),indent = 4))
-        
+        # find the uploaded objects
+        set1 = set(fetched)
+        set2 = set(notfound)
+        uploaded = sorted(list(set1-set2))
         # now need to revisit all uploaded objects and update any links renamed after
         # the uploaded object was written
         RedfishEventHandler.updateAllAliasedLinks(self,aggregation_source)
         # now we need to re-direct any boundary port link references
         # this needs to be done on ALL agents, not just the one we just uploaded
-        RedfishEventHandler.updateAllAgentsRedirectedLinks(self)
+        updated = RedfishEventHandler.updateAllAgentsRedirectedLinks(self)
+        # created the dict of uploaded, updated, or deleted URIs, 
+        # uploaded URIs are in Agent namespace and need to be xlated
+        uploaded = RedfishEventHandler.xlateEventOriginsToSunfish(self, uploaded,aggregation_source)
+        modified["created"] = uploaded
+        # updated URIs are in Sunfish namespace already
+        modified["changed"] = updated
+        # deleted URIs is empty list for this method
+        modified["deleted"] = deleted
 
-        return visited  
+        return modified  
 
     def create_uploaded_object(self, path: str, payload: dict):
         # before to add the ID and to call the methods there should be the json validation
@@ -772,7 +803,6 @@ class RedfishEventHandler(EventHandlerInterface):
     def updateObjectAliasedLinks(self, object_URI, agent_aliases):
 
         def findNestedURIs(self, URI_to_match, URI_to_sub, obj, path_to_nested_URI):
-            #pdb.set_trace()
             nestedPaths = []
             if type(obj) == list:
                 i = 0;
@@ -834,6 +864,7 @@ class RedfishEventHandler(EventHandlerInterface):
 
 
         modified_aliasDB = False
+        modified_objects = []
         for owning_agent_id in uri_aliasDB['Agents_xref_URIs']:
             logger.debug(f"redirecting placeholder links in all boundary ports for : {owning_agent_id}")
             if owning_agent_id in uri_aliasDB['Agents_xref_URIs']:
@@ -849,6 +880,7 @@ class RedfishEventHandler(EventHandlerInterface):
                                 modified_aliasDB = True
                                 # need to replace the update object and re-save the uri_aliasDB
                                 self.storage_backend.replace(agent_bp_obj)
+                                modified_objects.append[agent_bp_URI]
                             else:
                                 logger.info(f"------ PeerPortURI NOT found")
                                 pass
@@ -859,6 +891,7 @@ class RedfishEventHandler(EventHandlerInterface):
                                 modified_aliasDB = True
                                 # need to replace the update object and re-save the uri_aliasDB
                                 self.storage_backend.replace(agent_bp_obj)
+                                modified_objects.append[agent_bp_URI]
                             else:
                                 logger.info(f"------ PeerPortURI NOT found")
                                 pass
@@ -869,6 +902,7 @@ class RedfishEventHandler(EventHandlerInterface):
                                 modified_aliasDB = True
                                 # need to replace the update object and re-save the uri_aliasDB
                                 self.storage_backend.replace(agent_bp_obj)
+                                modified_objects.append[agent_bp_URI]
                             else:
                                 logger.info(f"------ PeerPortURI NOT found")
                                 pass
@@ -879,7 +913,7 @@ class RedfishEventHandler(EventHandlerInterface):
             with open(uri_alias_file,'w') as data_json:
                 json.dump(uri_aliasDB, data_json, indent=4, sort_keys=True)
                 data_json.close()
-        return 
+        return modified_objects
 
 
     def redirectInterswitchLinks(self,owning_agent_id, agent_bp_obj,uri_aliasDB):
@@ -1325,7 +1359,7 @@ class RedfishEventHandler(EventHandlerInterface):
         return
                     
     def resource_event_builder(self, request_type: 'sunfish.models.types.SunfishRequestType', path: str, payload: Optional[dict] = None) -> Optional[dict]:
-        pdb.set_trace()
+        #pdb.set_trace()
         ResourceCreated_template = {
             "@odata.type": "#Event.v1_7_0.Event",
             "Name": "New Resource Created",
@@ -1390,6 +1424,63 @@ class RedfishEventHandler(EventHandlerInterface):
 
         return 
 
+    def xlateEventOriginsToSunfish(self, agent_URIs: list , aggregation_source):
+        
+        sunfish_URIs = []
+        try:
+            for agent_path in agent_URIs:
+                sunfish_path= RedfishEventHandler.xlateToSunfishPath(self, agent_path, aggregation_source)
+                sunfish_URIs.append(sunfish_path)
+        except:
+            pass
+
+        return sunfish_URIs
+
+    def process_new_resourceEvents(self, sunfish_object_URIs):
+        #pdb.set_trace()
+        eventOrigin = {}
+        event_to_send = {}
+        was_sent_to = []
+        if "created" in sunfish_object_URIs:
+            try:
+                for created_URI in sunfish_object_URIs["created"]:
+                    eventOrigin_path = created_URI
+                    eventOrigin["@odata.id"] = created_URI
+                    action_type = SunfishRequestType.CREATE
+                    event_to_send = RedfishEventHandler.resource_event_builder(self, request_type = action_type, path = eventOrigin_path, payload = eventOrigin) 
+                    pdb.set_trace()
+                    was_sent_to.extend(RedfishEventHandler.new_event(self, event_to_send))
+                    logger.debug(f"sent event to ",len(was_sent_to)," Destinations")
+                    logger.debug(json.dumps(was_sent_to, indent=4))
+            except:
+                print(f"process_new_resourceEvents: Exception in CREATED")
+                pass
+
+        if "changed" in sunfish_object_URIs:
+            try:
+                for created_URI in sunfish_object_URIs["changed"]:
+                    eventOrigin_path = created_URI
+                    eventOrigin["@odata.id"] = created_URI
+                    action_type = SunfishRequestType.PATCH
+                    event_to_send = self.resource_event_builder(action_type, eventOrigin_path, eventOrigin) 
+                    was_sent_to.extend(RedfishEventHandler.new_event(event_to_send))
+            except:
+                print(f"process_new_resourceEvents: Exception in CHANGED")
+                pass
+
+        if "deleted" in sunfish_object_URIs:
+            try:
+                for created_URI in sunfish_object_URIs["deleted"]:
+                    eventOrigin_path = created_URI
+                    eventOrigin["@odata.id"] = created_URI
+                    action_type = SunfishRequestType.DELETE
+                    event_to_send = self.resource_event_builder(action_type, eventOrigin_path, eventOrigin) 
+                    was_sent_to.extend(RedfishEventHandler.new_event(event_to_send))
+            except:
+                print(f"process_new_resourceEvents: Exception in DELETED")
+                pass
+
+        return was_sent_to
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
     #  BoundaryComponent = ["owned", "foreign", "BoundaryLink","unknown"]

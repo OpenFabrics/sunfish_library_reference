@@ -341,28 +341,41 @@ class Core:
 
     def handle_event(self, payload):
 
-        pdb.set_trace()
+        #pdb.set_trace()
         if "Context" in payload:
             context = payload["Context"]
         else:
             context = ""
         logger.debug("Started handling incoming events")
         sunfish_handled = False
+        all_event_responses = []
+        this_event_response = {}
+
         for event in payload["Events"]:
             logger.debug(f"Handling event {event['MessageId']}")
             message_id = event['MessageId'].split(".")[-1]
+            event_id = event.get('EventId') or ""
+            event_origin = event.get('OriginOfCondition') or {}
             try:
                 resp = self.event_handler.dispatch(message_id, self.event_handler, event, context)
                 if resp is not None:
+                    pdb.set_trace()
                     sunfish_handled = True
+                    this_event_response["EventId"]=event_id
+                    this_event_response["MessageId"]=message_id
+                    this_event_response["dispatch_response"]=resp
+                    this_event_response["origin"]=event_origin
+                    all_event_responses.append(this_event_response)
+
             except PropertyNotFound as e:
                 logger.warning(repr(e))
                 raise e
         # if not handled by Sunfish, do NOT forward the original event to any subscribers
-        forwarded_to = []
-        #if sunfish_handled is False:
-        #    forwarded_to =  self.event_handler.new_event(payload)
-        return forwarded_to
+        # for now return an empty response list
+        if sunfish_handled is False:
+            return []
+        else:
+            return all_event_responses
 
     def _get_type(self, payload: dict, path: str = None):
         # controlla odata.type

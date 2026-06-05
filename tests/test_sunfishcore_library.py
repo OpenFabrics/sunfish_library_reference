@@ -153,19 +153,21 @@ class TestSunfishcoreLibrary():
 
     def test_event_forwarding(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
-        resp = self.core.handle_event(tests_template.task_event_cancelled)
+        #resp = self.core.handle_event(tests_template.task_event_cancelled)
+        resp = self.core.event_handler.new_event(tests_template.task_event_cancelled)
         assert len(resp) == 1
 
     def test_event_forwarding_exception(self, httpserver: HTTPServer):
         path = os.path.join(self.conf['redfish_root'], self.conf["backend_conf"]["subscribers_root"])
         assert self.core.create_object(path, tests_template.wrong_sub)
-        resp = self.core.handle_event(tests_template.event)
+        #resp = self.core.handle_event(tests_template.event)
+        resp = self.core.event_handler.new_event(tests_template.event)
         assert len(resp) == 0
 
     def test_event_forwarding_2(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
-        resp = self.core.handle_event(tests_template.event_resource_type_system)
-        #print('RESP ', resp)
+        #resp = self.core.handle_event(tests_template.event_resource_type_system)
+        resp = self.core.event_handler.new_event(tests_template.event_resource_type_system)
         assert len(resp) == 1
 
     def test_resource_created_event_no_context_exception(self):
@@ -209,9 +211,10 @@ class TestSunfishcoreLibrary():
         resp = self.core.handle_event(tests_template.reg_event)
         assert len(httpserver.log) == 2
         
-        assert  len(resp) == 0
+        assert  len(resp) == 1
 
-    def test_agent_upload(self, httpserver: HTTPServer):
+    def test_agent_upload(self, httpserver: HTTPServer, caplog):
+        
         # arm the httpserver with agent's response to GET on OriginOfCondition
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1)
@@ -229,7 +232,8 @@ class TestSunfishcoreLibrary():
         # TODO
         # should verify the two objects got uploaded and written to the Sunfish DB
         
-        assert  len(resp) == 0
+        assert  len(resp) == 1
+        #assert "Sunfish Internal Event Generation function Error" in caplog.text
 
     
     def test_event_resourceChanged(self, httpserver: HTTPServer):

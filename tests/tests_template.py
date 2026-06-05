@@ -532,6 +532,7 @@ reg_event = {
     "Name": "AggregationSourceDiscovered",
     "Context": "",
     "Events": [ {
+        "EventId":"0102",
         "Severity": "Ok",
         "Message": "A aggregation source of connection method",
         "MessageId": "ResourceEvent.1.x.AggregationSourceDiscovered",
@@ -547,6 +548,7 @@ upload_event = {
     "Name": "ResourceCreated",
     "Context": "feb7bb58-83f2-4945-a798-7c0811a29955",
     "Events": [ {
+        "EventId":"0506",
         "Severity": "Ok",
         "Message": "A new Fabric resource created",
         "MessageId": "ResourceEvent.1.x.ResourceCreated",
@@ -668,6 +670,7 @@ update_switch = {
     "Name": "ResourceChanged",
     "Context": "feb7bb58-83f2-4945-a798-7c0811a29955",
     "Events": [ {
+        "EventId":"0809",
         "Severity": "Ok",
         "Message": "A new Status for Switch resource",
         "MessageId": "ResourceEvent.1.x.ResourceChanged",
