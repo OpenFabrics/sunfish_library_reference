@@ -1455,7 +1455,7 @@ class RedfishEventHandler(EventHandlerInterface):
                     eventOrigin["@odata.id"] = created_URI
                     action_type = SunfishRequestType.CREATE
                     event_to_send = RedfishEventHandler.resource_event_builder(self, request_type = action_type, path = eventOrigin_path, payload = eventOrigin) 
-                    pdb.set_trace()
+                    #pdb.set_trace()
                     was_sent_to.extend(RedfishEventHandler.new_event(self, event_to_send))
                     logger.debug(f"sent event to ",len(was_sent_to)," Destinations")
                     logger.debug(json.dumps(was_sent_to, indent=4))
