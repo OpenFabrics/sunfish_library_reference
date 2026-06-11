@@ -43,7 +43,6 @@ class RedfishEventHandlersTable:
         connectionMethodId = event['OriginOfCondition']['@odata.id']
         hostname = event['MessageArgs'][1]  # Agent address
 
-        #response = requests.get(f"{hostname}/{connectionMethodId}")
         response = requests.get(f"{hostname}{connectionMethodId}")
         if response.status_code != 200:
             raise Exception("Cannot find ConnectionMethod")
@@ -133,9 +132,7 @@ class RedfishEventHandlersTable:
         # need to parse the new_resourceEvent_URIs{} for URIs to objects created, changed or deleted
         try:
             #pdb.set_trace()
-            print(json.dumps(new_resourceEvent_URIs, indent=4))
             notified_list =[]
-            #notified_list = RedfishEventHandler.process_new_resourceEvents(event_handler.core, new_resourceEvent_URIs)
             notified_list = RedfishEventHandler.process_new_resourceEvents(event_handler, new_resourceEvent_URIs)
             pass
         except Exception as e:
@@ -169,6 +166,8 @@ class RedfishEventHandlersTable:
             aggregation_source = event_handler.core.storage_backend.read(f"/redfish/v1/AggregationService/AggregationSources/{aggregation_source_id}")
             host = aggregation_source["HostName"]
             origin_of_condition = event["OriginOfCondition"]["@odata.id"]
+            new_resourceEvent_URIs = {}
+            new_resourceEvent_URIs["changed"]=[]
 
             # Fetch the updated resource from the agent
             logger.info(f"Fetching updated resource {origin_of_condition} from agent {aggregation_source_id} at {host}")
@@ -210,6 +209,17 @@ class RedfishEventHandlersTable:
             logger.info(f"Patching resource at {sunfish_uri}")
             event_handler.core.storage_backend.patch(sunfish_uri, updated_resource)
 
+            # need to create a ResourceUpdated event (aka ResourceUpdated) 
+            try:
+                #pdb.set_trace()
+                new_resourceEvent_URIs["changed"].append(sunfish_uri)
+                notified_list =[]
+                notified_list = RedfishEventHandler.process_new_resourceEvents(event_handler, new_resourceEvent_URIs)
+                pass
+            except Exception as e:
+                logging.error(f"Sunfish Internal Event Generation function Error", exc_info=True)
+                pass
+        
             # After patching, check if any cross-agent links need to be updated
             RedfishEventHandler.updateAllAgentsRedirectedLinks(event_handler.core)
             return 200
@@ -359,10 +369,8 @@ class RedfishEventHandler(EventHandlerInterface):
         
     def check_data_type(self, origin):
         length = len(self.redfish_root)
-        #length = len(self.conf["redfish_root"])
         resource = origin[length:]
         path = os.path.join(self.redfish_root, resource)
-        #path = os.path.join(self.conf["redfish_root"], resource)
         try:
             data = self.core.storage_backend.read(path)
         except ResourceNotFound as e:
@@ -386,7 +394,6 @@ class RedfishEventHandler(EventHandlerInterface):
         
         for id in list[:]:  #must use a slice-copy of list since we modify list in the loop
             path = os.path.join(self.redfish_root, 'EventService', 'Subscriptions', id)
-            #path = os.path.join(self.conf["redfish_root"], 'EventService', 'Subscriptions', id)
             try:
                 data = self.core.storage_backend.read(path)
                 # use the context found in the subscription, if there is one
@@ -1463,7 +1470,7 @@ class RedfishEventHandler(EventHandlerInterface):
                     eventOrigin["@odata.id"] = created_URI
                     action_type = SunfishRequestType.PATCH
                     event_to_send = self.resource_event_builder(action_type, eventOrigin_path, eventOrigin) 
-                    was_sent_to.extend(RedfishEventHandler.new_event(event_to_send))
+                    was_sent_to.extend(RedfishEventHandler.new_event(self, event_to_send))
             except:
                 print(f"process_new_resourceEvents: Exception in CHANGED")
                 pass

@@ -287,7 +287,6 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            #self.objects_manager.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
             agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
@@ -359,7 +358,7 @@ class Core:
             try:
                 resp = self.event_handler.dispatch(message_id, self.event_handler, event, context)
                 if resp is not None:
-                    pdb.set_trace()
+                    #pdb.set_trace()
                     sunfish_handled = True
                     this_event_response["EventId"]=event_id
                     this_event_response["MessageId"]=message_id
