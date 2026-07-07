@@ -335,7 +335,10 @@ class Core:
             logger.debug(f"The object {object_type} does not have a custom handler")
 
         # 4. persist change in Sunfish tree
-        self.storage_backend.remove(path)
+        list_of_impacted_objects = self.storage_backend.remove(path)
+        # 5. process list of impacted objects for subscribers to ResourceEvents
+        events_sent_to = self.event_handler.process_new_resourceEvents(list_of_impacted_objects)
+
         return f"Object {path} deleted"
 
     def handle_event(self, payload):

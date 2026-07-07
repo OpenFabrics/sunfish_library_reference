@@ -294,10 +294,19 @@ class BackendFS(BackendInterface):
         """
         # code that removes a file
         logging.info('BackendFS: remove called')
+        files_removed = []
+        parent_file_modified = False
+        files_modified = []
+        new_resourceEvents_URIs={}
+        new_resourceEvents_URIs["created"] = []
+        new_resourceEvents_URIs["changed"] = []
+        new_resourceEvents_URIs["deleted"] = []
 
         length = len(self.redfish_root)
         resource_id = path[length:]
+        parent_id = os.path.dirname(resource_id)
 
+        base_path = os.path.join(os.getcwd(), self.root)
         full_path = os.path.join(os.getcwd(), self.root, resource_id)
 
         if len(resource_id) == 0:
@@ -307,32 +316,47 @@ class BackendFS(BackendInterface):
             raise ResourceNotFound(resource_id)
 
         parent_path = os.path.dirname(full_path)
-        json_path = os.path.join(parent_path, 'index.json')
+        parent_json_path = os.path.join(parent_path, 'index.json')
+        # find files that will be removed
+        pdb.set_trace()
+        files_removed = self._list_subordinates(full_path, base_path)
         shutil.rmtree(full_path)
 
         try:
-            with open(json_path, "r") as file:
+            # retrieve parent object if it exists
+            with open(parent_json_path, "r") as file:
                 pdata = json.load(file)
                 file.close()
 
             data = {
                 "@odata.id": os.path.join(self.redfish_root, resource_id)
             }
-            collection_name = resource_id.split('/')[-1]
+            # define the object's ID within parent object (/Fabrics/CXL/Connections/this_one =>this_one)
+            object_name = resource_id.split('/')[-1]
+            # remove the Redfish ID from a Collection's 'Members' 
             if 'Members' in pdata and data in pdata['Members']:
                 pdata['Members'].remove(data)
                 pdata['Members@odata.count'] = int(pdata['Members@odata.count']) - 1
-            elif collection_name in pdata:
-                del pdata[collection_name]
+                parent_file_modified = True
+            # otherwise, see if deleted path is a subordinate
+            elif object_name in pdata:
+                del pdata[object_name]
+                parent_file_modified = True
 
-            with open(json_path, "w") as file:
-                json.dump(pdata, file, indent=4, sort_keys=True)
-                file.close()
+            # write the parent object back to the file system
+            if parent_file_modified:
+                files_modified.append(os.path.join(self.redfish_root, parent_id))
+                with open(parent_json_path, "w") as file:
+                    json.dump(pdata, file, indent=4, sort_keys=True)
+                    file.close()
+
 
         except FileNotFoundError as e:
             raise ResourceNotFound(resource_id)
 
-        # check links
+        # check all other objects in the service tree from root
+        # for links (URLs) pointing to the removed object
+        # this brute force search may need to be optimized!
         to_replace = False
         first = False
 
@@ -369,9 +393,32 @@ class BackendFS(BackendInterface):
                     if to_replace:
                         with open(file_path, "w") as file:
                             json.dump(pdata, file, indent=4, sort_keys=True)
+                            # path is full filesystem name, need the redfish ID
+                            redfish_path = os.path.join(self.redfish_root, os.path.relpath(path, base_path))
+                            files_modified.append(redfish_path)
                         to_replace = False
 
-        return "DELETE: file removed."
+
+        new_resourceEvents_URIs["changed"].extend(files_modified)
+        new_resourceEvents_URIs["deleted"].extend(files_removed)
+        return new_resourceEvents_URIs
+
+    def _list_subordinates(self, path: str, base_path: str):
+        to_delete = []
+
+        # Check if the base directory exists
+        if not os.path.exists(path):
+            return to_delete
+
+        # Walk through all subordinate directories and files
+        for root, dirs, files in os.walk(path):
+            for name in files:
+                if name == "index.json":
+                    #to_delete.append(os.path.join(root, name))
+                    redfish_path = os.path.join(self.redfish_root,os.path.relpath(root, base_path))
+                    to_delete.append(redfish_path)
+
+        return to_delete
 
 
 

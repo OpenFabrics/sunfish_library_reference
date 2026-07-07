@@ -229,6 +229,82 @@ class RedfishEventHandlersTable:
 
 
     @classmethod
+    def ResourceDeleted(cls, event_handler: EventHandlerInterface, event: dict, context: str):
+        """
+        Handles a ResourceDeleted event from an agent.
+        This handler translates the deleted resource from Agent name to its
+        URI to the corresponding Sunfish URI, and removes the existing object and all its subordinates
+        from the database.
+        """
+        #pdb.set_trace()
+        try:
+            if "OriginOfCondition" not in event or not event["OriginOfCondition"].get("@odata.id"):
+                logger.error("ResourceDeleted event is missing OriginOfCondition.")
+                return
+
+            if not context:
+                logger.error("No context (AggregationSource ID) in ResourceDeleted event.")
+                return
+
+            aggregation_source_id = context
+            aggregation_source = event_handler.core.storage_backend.read(f"/redfish/v1/AggregationService/AggregationSources/{aggregation_source_id}")
+            host = aggregation_source["HostName"]
+            origin_of_condition = event["OriginOfCondition"]["@odata.id"]
+            new_resourceEvent_URIs = {}
+            new_resourceEvent_URIs["deleted"]=[]
+
+            # URI Aliasing to find the object in Sunfish
+            sunfish_uri = RedfishEventHandler.xlateToSunfishPath(event_handler.core, origin_of_condition, aggregation_source)
+
+            # Check if object exists before attempting to delete
+            try:
+                sunfish_obj = json.load(event_handler.core.storage_backend.read(sunfish_uri))
+            except NotFound:
+                logger.error(f"ResourceDeleted event for a non-existent object. Agent URI: {origin_of_condition}, Sunfish URI: {sunfish_uri}")
+                return
+
+            # Get aliases in use for this agent 
+            uri_alias_file = os.path.join(os.getcwd(), event_handler.core.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            agent_aliases = {}
+            if os.path.exists(uri_alias_file):
+                with open(uri_alias_file, 'r') as data_json:
+                    uri_aliasDB = json.load(data_json)
+                    owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
+                    if owning_agent_id in uri_aliasDB.get('Agents_xref_URIs', {}) and 'aliases' in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]:
+                        agent_aliases = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['aliases']
+
+            # Update any internal @odata.id links in the fetched payload
+            # No need to update links in the to-be-deleted object
+            #updated_resource = RedfishEventHandler.update_aliased_links_in_object(event_handler.core, updated_resource, agent_aliases)
+
+            # Boundary Link Processing - check if this delete affects a boundary link
+            # need to find all objects that will be deleted with this one
+            #if "Oem" in updated_resource and "Sunfish_RM" in updated_resource["Oem"] and updated_resource["Oem"]["Sunfish_RM"].get("BoundaryComponent") == "BoundaryPort":
+                #RedfishEventHandler.track_boundary_port(event_handler.core, updated_resource, aggregation_source)
+
+            # 
+            logger.info(f"Deleting resource at {sunfish_uri}")
+            event_handler.core.storage_backend.remove(sunfish_uri)
+
+            # need to create a ResourceUpdated event (aka ResourceUpdated) 
+            try:
+                #pdb.set_trace()
+                new_resourceEvent_URIs["changed"].append(sunfish_uri)
+                notified_list =[]
+                notified_list = RedfishEventHandler.process_new_resourceEvents(event_handler, new_resourceEvent_URIs)
+                pass
+            except Exception as e:
+                logging.error(f"Sunfish Internal Event Generation function Error", exc_info=True)
+                pass
+        
+            # After patching, check if any cross-agent links need to be updated
+            RedfishEventHandler.updateAllAgentsRedirectedLinks(event_handler.core)
+            return 200
+
+        except Exception:
+            logger.error("Exception in ResourceChanged handler", exc_info=True)
+
+    @classmethod
     def TriggerEvent(cls, event_handler: EventHandlerInterface, event: dict, context: str):
         ###
         # Receipt of this event will cause the core library to retrieve and send a specific event to a specific target
@@ -1412,7 +1488,7 @@ class RedfishEventHandler(EventHandlerInterface):
             } ]
         }
 
-        print(f"Event_Builder: called on {path} with payload {payload}")
+        logger.debug(f"Event_Builder: called on {path} with payload {payload}")
         if request_type == SunfishRequestType.DELETE:
             ResourceDeleted_template["Events"][0]["OriginOfCondition"]\
                 ["@odata.id"]=path
@@ -1482,7 +1558,7 @@ class RedfishEventHandler(EventHandlerInterface):
                     eventOrigin["@odata.id"] = created_URI
                     action_type = SunfishRequestType.DELETE
                     event_to_send = self.resource_event_builder(action_type, eventOrigin_path, eventOrigin) 
-                    was_sent_to.extend(RedfishEventHandler.new_event(event_to_send))
+                    was_sent_to.extend(RedfishEventHandler.new_event(self, event_to_send))
             except:
                 print(f"process_new_resourceEvents: Exception in DELETED")
                 pass
