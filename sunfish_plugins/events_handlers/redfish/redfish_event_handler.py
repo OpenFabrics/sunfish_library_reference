@@ -392,11 +392,13 @@ class RedfishEventHandler(EventHandlerInterface):
         else:
             logger.debug(f"Message id '{message_id}' does not have a custom handler")
 
-    def new_event(self, payload):
+    def new_event(self, payload, origin_type = None):
         """Compares event's information with the subsribtions data structure to find the Ids of the subscribers for that event.
         
         Args:
             payload (dict): event received.
+            origin_type (dict): resource type of OriginOfCondition in payload (optional)
+                (if event is a DELETE notice, there is no object to read to fine its ResourceType)
         """
         #pdb.set_trace()
         for event in payload["Events"]:
@@ -420,7 +422,10 @@ class RedfishEventHandler(EventHandlerInterface):
             if "OriginOfCondition" in event:
                 origin = event["OriginOfCondition"]["@odata.id"]
                 try:
-                    type = RedfishEventHandler.check_data_type(self, origin)
+                    if origin_type is None:
+                        type = RedfishEventHandler.check_data_type(self, origin)
+                    else:
+                        type=origin_type
                 except ResourceNotFound as e:
                     raise ResourceNotFound(e.resource_id)
                 if type in subscriptions["ResourceTypes"]:
@@ -1558,7 +1563,9 @@ class RedfishEventHandler(EventHandlerInterface):
                     eventOrigin["@odata.id"] = created_URI
                     action_type = SunfishRequestType.DELETE
                     event_to_send = self.resource_event_builder(action_type, eventOrigin_path, eventOrigin) 
-                    was_sent_to.extend(RedfishEventHandler.new_event(self, event_to_send))
+                    if "deleted_types" in sunfish_object_URIs and created_URI in sunfish_object_URIs["deleted_types"]:
+                        origin_type = sunfish_object_URIs["deleted_types"][created_URI]
+                    was_sent_to.extend(RedfishEventHandler.new_event(self, event_to_send, origin_type))
             except:
                 print(f"process_new_resourceEvents: Exception in DELETED")
                 pass

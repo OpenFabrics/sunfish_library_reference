@@ -301,6 +301,7 @@ class BackendFS(BackendInterface):
         new_resourceEvents_URIs["created"] = []
         new_resourceEvents_URIs["changed"] = []
         new_resourceEvents_URIs["deleted"] = []
+        new_resourceEvents_URIs["deleted_types"] = {}
 
         length = len(self.redfish_root)
         resource_id = path[length:]
@@ -320,6 +321,13 @@ class BackendFS(BackendInterface):
         # find files that will be removed
         pdb.set_trace()
         files_removed = self._list_subordinates(full_path, base_path)
+        # find object types of files that will be removed
+        for name in files_removed:
+            data = self.read(name)
+            obj_type = data["@odata.type"].split('.')[0]
+            obj_type = obj_type.replace("#","") 
+            new_resourceEvents_URIs["deleted_types"][name]=obj_type
+
         shutil.rmtree(full_path)
 
         try:
