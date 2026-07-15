@@ -248,7 +248,7 @@ sub3 = {
     "OriginResources": [{
         "@odata.id": "/redfish/v1/Systems/1"
     }],
-    "SubordinateResources": "True"
+    "SubordinateResources": True
 }
 
 
@@ -266,7 +266,7 @@ sub4 = {
     "OriginResources": [{
         "@odata.id": "/redfish/v1/Fabrics/Pytest1"
     }],
-    "SubordinateResources": "True"
+    "SubordinateResources": True
 }
 
 
@@ -284,7 +284,7 @@ sub5 = {
     "OriginResources": [{
         "@odata.id": "/redfish/v1/Fabrics"
     }],
-    "SubordinateResources": "True"
+    "SubordinateResources": True
 }
 
 wrong_sub = {
