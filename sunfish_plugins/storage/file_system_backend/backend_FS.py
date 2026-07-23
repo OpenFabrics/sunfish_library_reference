@@ -3,6 +3,7 @@
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 
 import pdb
+import copy
 import json
 import logging
 import os
@@ -319,7 +320,7 @@ class BackendFS(BackendInterface):
         parent_path = os.path.dirname(full_path)
         parent_json_path = os.path.join(parent_path, 'index.json')
         # find files that will be removed
-        pdb.set_trace()
+        #pdb.set_trace()
         files_removed = self._list_subordinates(full_path, base_path)
         # find object types of files that will be removed
         for name in files_removed:
@@ -362,50 +363,9 @@ class BackendFS(BackendInterface):
         except FileNotFoundError as e:
             raise ResourceNotFound(resource_id)
 
-        # check all other objects in the service tree from root
-        # for links (URLs) pointing to the removed object
-        # this brute force search may need to be optimized!
-        to_replace = False
-        first = False
+        #pdb.set_trace()
 
-        for path, directories, files in os.walk(os.path.join(os.getcwd(), self.root)):
-            if 'index.json' in files:
-                file_path = os.path.join(path, 'index.json')
-
-                with open(file_path, "r") as file:
-                    pdata = json.load(file)
-
-                if 'Links' in pdata and path != os.path.join(os.getcwd(), self.root):
-                    link_list = pdata['Links']
-                    to_del = []
-                    for link in link_list:
-                        for x in link_list[link]:
-                            if isinstance(link_list[link], list):
-                                to_compare = ""
-                                if type(x) is dict and "@odata.id" in x:
-                                    to_compare = x['@odata.id']
-                                elif type(x) is str:
-                                    to_compare = x
-                                if to_compare == os.path.join(self.redfish_root, resource_id):
-                                    to_replace = True
-                                    link_list[link].remove(x)
-                                    if len(link_list[link]) == 0:
-                                        to_del.append(link)
-                            elif isinstance(link_list[link], dict):
-                                if x == os.path.join(self.redfish_root, resource_id):
-                                    to_del.append(link)
-                                    to_replace = True
-                    if to_del:
-                        for el in to_del:
-                            del link_list[el]
-                    if to_replace:
-                        with open(file_path, "w") as file:
-                            json.dump(pdata, file, indent=4, sort_keys=True)
-                            # path is full filesystem name, need the redfish ID
-                            redfish_path = os.path.join(self.redfish_root, os.path.relpath(path, base_path))
-                            files_modified.append(redfish_path)
-                        to_replace = False
-
+        self._remove_all_references(files_removed, files_modified)
 
         new_resourceEvents_URIs["changed"].extend(files_modified)
         new_resourceEvents_URIs["deleted"].extend(files_removed)
@@ -455,4 +415,57 @@ class BackendFS(BackendInterface):
             raise Exception("reset_resources Failed")
             resp = "Fail", 500
         return resp
+
+    def _remove_all_references(self,removed_list, modified_files ):
+        # check all other objects in the service tree from root
+        # for links (URLs) pointing to the removed object
+        # this brute force search may need to be optimized!
+        to_replace = False
+        base_path = os.path.join(os.getcwd(), self.root)
+
+        for path, directories, files in os.walk(base_path):
+            if 'index.json' in files:
+                file_path = os.path.join(path, 'index.json')
+
+                with open(file_path, "r") as file:
+                    pdata = json.load(file)
+
+                if 'Links' in pdata and path != os.path.join(os.getcwd(), self.root):
+                    link_list = pdata['Links'] #grab pointer to the "Links" structure
+                    link_list_copy = copy.deepcopy(link_list)
+                    to_del = []
+                    for link in link_list_copy:
+                        for x in link_list_copy[link]:
+                            if isinstance(link_list_copy[link], list):
+                                to_compare = ""
+                                if type(x) is dict and "@odata.id" in x:
+                                    to_compare = x['@odata.id']
+                                elif type(x) is str:
+                                    to_compare = x
+                                # have to check this link against each deleted resource URI
+                                for URI in removed_list:
+                                    #if to_compare == os.path.join(self.redfish_root, URI):
+                                    if to_compare == URI:
+                                        to_replace = True
+                                        link_list[link].remove(x) #manipulate original
+                                        if len(link_list[link]) == 0:
+                                            to_del.append(link)
+                            elif isinstance(link_list_copy[link], dict):
+                                # have to check this link against each deleted resource URI
+                                for URI in removed_list:
+                                    #if x == os.path.join(self.redfish_root, URI):
+                                    if x == URI:
+                                        to_del.append(link)
+                                        to_replace = True
+                    if to_del:
+                        for el in to_del:
+                            del link_list[el]
+                # after checking a URI Links in file, write it back if needed
+                if to_replace:
+                    with open(file_path, "w") as file:
+                        json.dump(pdata, file, indent=4, sort_keys=True)
+                        # path is full filesystem name, need the redfish ID
+                        redfish_path = os.path.join(self.redfish_root, os.path.relpath(path, base_path))
+                        modified_files.append(redfish_path)
+                        to_replace = False
 

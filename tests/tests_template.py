@@ -559,6 +559,23 @@ upload_event = {
     } ]
 }
 
+
+delete_fabric_event = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "ResourceDeleted",
+    "Context": "feb7bb58-83f2-4945-a798-7c0811a29955",
+    "Events": [ {
+        "EventId":"2121",
+        "Severity": "Ok",
+        "Message": "A Fabric resource deleted",
+        "MessageId": "ResourceEvent.1.x.ResourceDeleted",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/Pytest1"
+        }
+    } ]
+}
+
 connection_method_pytest2 = {
     "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/Pytest2",
     "@odata.type": "#ConnectionMethod.v1_1_0.ConnectionMethod",

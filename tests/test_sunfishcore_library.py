@@ -268,6 +268,37 @@ class TestSunfishcoreLibrary():
         # handle_event() will return list of UUIDs to which the event was forwarded
         assert  len(resp) == 1
 
+    def test_event_resourceDeleted(self, httpserver: HTTPServer):
+        # requires test_agent_upload runs successfully before calling this test
+        #
+        # This test checks:
+        #   1)  when a ResourceDeleted event is sent to Sunfish core, 
+        #       Sunfish removes the deleted resource (OriginOfCondition),
+        #       Sunfish removes all the subordinates of the deleted resource
+        #       and traverses the whole database and removing links to the deleted resources
+        #       and also sends a ResourceDeleted event to any ResourceEvents subscribers
+        #       AND sends a ResourceChanged event for any 
+        #
+        # arm the httpserver with subscriber's blind response to receipt of Events:
+        #   for delete of /Fabrics/Pytest1
+        #   for delete of /Fabrics/Pytest1/Switches
+        #   for delete of /Fabrics/Pytest1/Switches/Pytest1
+        #   for changes to /Fabrics
+        #   for changes to /AggregationService/AggregationSources/xxxxxxxx
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        # send Sunfish core a ResourceDeleted event naming a fabric as OriginOfCondition
+        resp = self.core.handle_event(tests_template.delete_fabric_event)
+        assert len(httpserver.log) == 5
+        # TODO
+        # should verify the deleted fabric got removed from the Sunfish DB
+        
+        # handle_event() will return list of UUIDs to which the event was forwarded
+        assert  len(resp) == 1
+
 
     # deletes all the subscriptions
     @pytest.mark.order("last")
