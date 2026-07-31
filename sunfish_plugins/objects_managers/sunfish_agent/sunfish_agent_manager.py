@@ -23,12 +23,9 @@ class SunfishAgentManager(ObjectManagerInterface):
         self.core = core
 
     def forward_to_manager(self, request_type: 'sunfish.models.types.SunfishRequestType', path: string, payload: dict = None) -> Optional[dict]:
-        uri_aliasDB = {}
         agent_response = None
         object_modified = False
         path_to_check = path
-        print(f"!!obj path to foward is {path}")
-        print(f"!!request_type is {request_type}")
         #pdb.set_trace()
         if request_type == SunfishRequestType.CREATE:
             # When creating an object, the request must be done on the collection. Since collections are generally not
@@ -93,7 +90,7 @@ class SunfishAgentManager(ObjectManagerInterface):
         else:
             logger.debug(f"{path} is not managed by an agent")
 
-        return agent_response
+        return agent_response #shouldn't this be obj_modified??!
 
     def xlateToAgentURIs(self, sunfish_obj ):
 

@@ -338,7 +338,8 @@ class Core:
         list_of_impacted_objects = self.storage_backend.remove(path)
         # 5. process list of impacted objects for subscribers to ResourceEvents
         events_sent_to = self.event_handler.process_new_resourceEvents(list_of_impacted_objects)
-
+        # 6. remove any deleted objects' URIs from Sunfish alias DB 
+        #  TODO
         return f"Object {path} deleted"
 
     def handle_event(self, payload):

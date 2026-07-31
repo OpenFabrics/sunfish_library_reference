@@ -10,6 +10,7 @@ import warnings
 import shutil
 from uuid import uuid4
 import pdb
+import copy
 
 import requests
 from sunfish.events.event_handler_interface import EventHandlerInterface
@@ -268,18 +269,6 @@ class RedfishEventHandlersTable:
                 logger.error(f"ResourceDeleted event for a non-existent object. Agent URI: {origin_of_condition}, Sunfish URI: {sunfish_uri}")
                 return
 
-            # Get aliases in use for this agent 
-            ''' 
-            uri_alias_file = os.path.join(os.getcwd(), event_handler.core.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
-            agent_aliases = {}
-            if os.path.exists(uri_alias_file):
-                with open(uri_alias_file, 'r') as data_json:
-                    uri_aliasDB = json.load(data_json)
-                    owning_agent_id = aggregation_source["@odata.id"].split("/")[-1]
-                    if owning_agent_id in uri_aliasDB.get('Agents_xref_URIs', {}) and 'aliases' in uri_aliasDB['Agents_xref_URIs'][owning_agent_id]:
-                        agent_aliases = uri_aliasDB['Agents_xref_URIs'][owning_agent_id]['aliases']
-
-            ''' 
             # Update any internal @odata.id links in the fetched payload
             # No need to update links in the to-be-deleted object
             #updated_resource = RedfishEventHandler.update_aliased_links_in_object(event_handler.core, updated_resource, agent_aliases)
@@ -294,7 +283,7 @@ class RedfishEventHandlersTable:
             # remove() returns dictionary of lists of files changed or deleted
             new_resourceEvent_URIs = event_handler.core.storage_backend.remove(sunfish_uri)
 
-            # need to create a ResourceEvents for all files deleted or changed event 
+            # need to create a ResourceEvents for all files deleted or changed 
             try:
                 #pdb.set_trace()
                 notified_list =[]
@@ -307,15 +296,8 @@ class RedfishEventHandlersTable:
             # now remove all aliases for deleted URIs
 
             try:
-                uri_alias_file = os.path.join(os.getcwd(), event_handler.core.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
-                agent_aliases = {}
-                uri_aliases_changed = False
-                if os.path.exists(uri_alias_file):
-                    with open(uri_alias_file, 'r') as data_json:
-                        uri_aliasDB = json.load(data_json)
-                    # check for the sunfish_uri in the alias list and remove it
-                    uri_aliasDB["Sunfish_xref_URIs"]["aliases"].pop(sunfish_uri, None)
-                    # need to locate the agent key,value pair and remove it
+                pdb.set_trace()
+                uri_aliases = RedfishEventHandler.removeAliasesFromSunfishDB(event_handler.core, new_resourceEvent_URIs)
             except Exception as e:
                 logging.error(f"Sunfish URI alias Database Cleanup error", exc_info=True)
 
@@ -1594,6 +1576,55 @@ class RedfishEventHandler(EventHandlerInterface):
                 pass
 
         return was_sent_to
+
+    def removeAliasesFromSunfishDB(self,deleted_Sunfish_URIs):
+        try:
+            uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            if os.path.exists(uri_alias_file):
+                with open(uri_alias_file, 'r') as data_json:
+                    uri_aliasDB = json.load(data_json)
+                    data_json.close()
+            else:
+                logger.error(f"alias file {uri_alias_file} not found")
+                raise Exception 
+
+        except:
+            raise Exception
+
+        try:
+            pdb.set_trace()
+            changed_URI_DB = False
+            sunfish_names = copy.deepcopy(uri_aliasDB.get("Sunfish_xref_URIs",{}))
+            agent_names = copy.deepcopy(uri_aliasDB.get("Agents_xref_URIs", {}))
+            # search the sunfish_xref_URIs key:value pairs
+            # key = sunfish_name, value = list of agent_names
+            for deleted_URI in deleted_Sunfish_URIs.get("deleted",[]):
+                if "aliases" in sunfish_names: 
+                    for sunfish_name, agent_list in sunfish_names["aliases"].items():
+                        if sunfish_name == deleted_URI:
+                            del uri_aliasDB["Sunfish_xref_URIs"]["aliases"][sunfish_name]
+                            changed_URI_DB = True
+            #
+            # next we need to search the agent_xref_URIs
+            # which are key = agent_name, value = sunfish_name
+            # 
+                for agent_id in agent_names:
+                    for agent_URI, sunfish_URI in agent_names[agent_id]["aliases"].items():
+                        if sunfish_URI == deleted_URI:
+                            del uri_aliasDB["Agents_xref_URIs"][agent_id]["aliases"][agent_URI]
+                            changed_URI_DB = True
+
+            # now need to write aliasDB back to file if we didn't mess it up
+            if changed_URI_DB:
+                with open(uri_alias_file,'w') as data_json:
+                    json.dump(uri_aliasDB, data_json, indent=4, sort_keys=True)
+                    data_json.close()
+        except Exception as e:
+            # don't change anything
+            logging.error(f"Removing Deleted Aliases Failed", exc_info=True)
+            pass
+
+        return uri_aliasDB
 
 def add_aggregation_source_reference(redfish_obj, aggregation_source):
     #  BoundaryComponent = ["owned", "foreign", "BoundaryLink","unknown"]

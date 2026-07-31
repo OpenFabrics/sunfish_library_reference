@@ -80,6 +80,7 @@ class TestSunfishcoreLibrary():
     def test_post_object(self):
         json_file = tests_template.test_post_system
         path = os.path.join(self.conf["redfish_root"], "Systems")
+        pdb.set_trace()
         assert self.core.create_object(path, json_file)
 
     def test_post_collection_exception(self):
@@ -228,6 +229,8 @@ class TestSunfishcoreLibrary():
         connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches/Pytest1")
         httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_pytest1)
         resp = self.core.handle_event(tests_template.upload_event)
+        upload_list =  test_utils.check_uploaded_objects(tests_template.upload_event, self.conf['redfish_root'])
+        assert len(upload_list) == 3
         assert len(httpserver.log) == 4
         # TODO
         # should verify the two objects got uploaded and written to the Sunfish DB
@@ -268,6 +271,46 @@ class TestSunfishcoreLibrary():
         # handle_event() will return list of UUIDs to which the event was forwarded
         assert  len(resp) == 1
 
+    def test_2nd_agent_upload(self, httpserver: HTTPServer, caplog):
+        
+        # this tests a 2nd agent upload of a CXL fabric with the same names as
+        # the previous agent's upload.  The 2nd agent's upload has a different Fabric UUID
+        # so Sunfish will RENAME the 2nd agent's fabric object
+        # Because this test runs AFTER test_event_resourceChanged, there will be events 
+        # issued for the creation of 3 new objects uploaded from the 2nd agent
+        #
+        # this test requires the previous test_agent_upload and test_event_resourceChanged 
+        # both completed successfully
+        #
+        # arm the httpserver with agent's response to GET on OriginOfCondition
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1b)
+        # the above is actually retrieved again at start of recursive fetch (upload)
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_pytest1b)
+        # arm the httpserver with agent's response to GET on subordinate Switches collection
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_collection)
+        # arm the httpserver with agent's response to GET on Switch object  
+        connection_path = os.path.join(self.conf['redfish_root'], "Fabrics/Pytest1/Switches/Pytest1")
+        httpserver.expect_ordered_request(connection_path, method="GET").respond_with_json(tests_template.fabrics_switch_pytest1b)
+        # arm the httpserver with client's response to the associated 3 ResourceCreated Events
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        pdb.set_trace()
+        resp = self.core.handle_event(tests_template.upload_event2)
+        # check that 2nd agent uploaded the correct number of objects (3)
+        upload_list =  test_utils.check_uploaded_objects(tests_template.upload_event2, self.conf['redfish_root'])
+        assert len(upload_list) == 3
+        assert len(httpserver.log) == 7
+        # TODO
+        # should verify the two objects got uploaded and written to the Sunfish DB
+        # assert test_utils.check_delete(system_url) == True
+        
+        assert  len(resp) == 1
+        #assert "Sunfish Internal Event Generation function Error" in caplog.text
+
     def test_event_resourceDeleted(self, httpserver: HTTPServer):
         # requires test_agent_upload runs successfully before calling this test
         #
@@ -292,6 +335,9 @@ class TestSunfishcoreLibrary():
         httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
         # send Sunfish core a ResourceDeleted event naming a fabric as OriginOfCondition
         resp = self.core.handle_event(tests_template.delete_fabric_event)
+        # deleted objects should be removed from uploaded_objects list in the aggregationSource
+        upload_list =  test_utils.check_uploaded_objects(tests_template.delete_fabric_event, self.conf['redfish_root'])
+        assert len(upload_list) == 0
         assert len(httpserver.log) == 5
         # TODO
         # should verify the deleted fabric got removed from the Sunfish DB
@@ -299,6 +345,40 @@ class TestSunfishcoreLibrary():
         # handle_event() will return list of UUIDs to which the event was forwarded
         assert  len(resp) == 1
 
+
+    def test_event_resourceDeleted2(self, httpserver: HTTPServer):
+        # requires test_agent_upload runs successfully before calling this test
+        #
+        # This test checks:
+        #   1)  when a ResourceDeleted event is sent to Sunfish core, 
+        #       Sunfish removes the deleted resource (OriginOfCondition),
+        #       Sunfish removes all the subordinates of the deleted resource
+        #       and traverses the whole database and removing links to the deleted resources
+        #       and also sends a ResourceDeleted event to any ResourceEvents subscribers
+        #       AND sends a ResourceChanged event for any 
+        #
+        # arm the httpserver with subscriber's blind response to receipt of Events:
+        #   for delete of /Fabrics/Pytest1
+        #   for delete of /Fabrics/Pytest1/Switches
+        #   for delete of /Fabrics/Pytest1/Switches/Pytest1
+        #   for changes to /Fabrics
+        #   for changes to /AggregationService/AggregationSources/xxxxxxxx
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
+        # send Sunfish core a ResourceDeleted event naming a fabric as OriginOfCondition
+        # this is the renamed fabric for 2nd agent, 
+        resp = self.core.handle_event(tests_template.delete_fabric_event2)
+        # deleted objects should be removed from uploaded_objects list in the aggregationSource
+        upload_list =  test_utils.check_uploaded_objects(tests_template.delete_fabric_event2, self.conf['redfish_root'])
+        assert len(upload_list) == 0
+        assert len(httpserver.log) == 5
+        # TODO
+        # should verify the deleted fabric got removed from the Sunfish DB
+        
+        assert  len(resp) == 1
 
     # deletes all the subscriptions
     @pytest.mark.order("last")

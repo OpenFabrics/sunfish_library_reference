@@ -291,7 +291,7 @@ class BackendFS(BackendInterface):
             ResourceNotFound: it is not possible to remove a resource that does not exists.
 
         Returns:
-            str: confirmation string
+            dict:  list of files created, changed, or deleted
         """
         # code that removes a file
         logging.info('BackendFS: remove called')

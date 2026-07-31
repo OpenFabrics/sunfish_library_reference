@@ -4,8 +4,11 @@
     "Members": [
         {
             "@odata.id": "/redfish/v1/AggregationService/AggregationSources/feb7bb58-83f2-4945-a798-7c0811a29955"
+        },
+        {
+            "@odata.id": "/redfish/v1/AggregationService/AggregationSources/feb0bb58-83f2-4945-a798-7c0811a29955"
         }
     ],
-    "Members@odata.count": 1,
+    "Members@odata.count": 2,
     "Name": "AggregationService/AggregationSources Collection"
 }
