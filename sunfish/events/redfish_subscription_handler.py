@@ -5,6 +5,7 @@
 import json
 import os
 import string
+import pdb
 
 from sunfish.events.subscription_handler_interface import SubscriptionHandlerInterface
 from sunfish.lib.exceptions import *
@@ -62,6 +63,7 @@ class RedfishSubscriptionHandler(SubscriptionHandlerInterface):
 
     # Loads the subscriptions already stored
     def load_subscriptions(self):
+        #pdb.set_trace()
         path = os.path.join(os.getcwd(), self.fs_root, self.subscribers_root)
         if not os.path.exists(path):
             return
@@ -80,6 +82,7 @@ class RedfishSubscriptionHandler(SubscriptionHandlerInterface):
 
     def new_subscription(self, payload: dict):
         # check if sub has colliding properties
+        #pdb.set_trace()
         if self.validate_subscription(payload) is False:
             raise IllegalSubscription
 

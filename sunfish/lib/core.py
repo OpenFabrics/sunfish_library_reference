@@ -212,8 +212,6 @@ class Core:
             agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.CREATE, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
-            # 3. Execute any custom handler for this object type AFTER Agent mods, if any
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.CREATE, payload=payload_to_write)
         except ResourceNotFound:
             logger.error("The collection where the resource is to be created does not exist.")
         except AgentForwardingFailure as e:
@@ -222,6 +220,8 @@ class Core:
             # The object does not have a handler.
             logger.debug(f"The object {object_type} does not have a custom handler")
             pass
+        # 3. Execute any custom handler for this object type AFTER Agent mods, if any
+        self.objects_handler.dispatch(object_type, path, SunfishRequestType.CREATE, payload=payload_to_write)
         # 4. persist change in Sunfish tree
         payload_written = self.storage_backend.write(payload_to_write)
         # 5. create appropriate Event and send to subscribed EventDestinations
@@ -252,14 +252,14 @@ class Core:
             agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.REPLACE, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
-            # 3. Execute any custom handler for this object type
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.REPLACE, payload=payload_to_write)
         except ResourceNotFound:
             logger.error(logger.error(f"The resource to be replaced ({path}) does not exist."))
         except AttributeError:
             # The object does not have a handler.
             logger.debug(f"The object {object_type} does not have a custom handler")
             pass
+        # 3. Execute any custom handler for this object type
+        self.objects_handler.dispatch(object_type, path, SunfishRequestType.REPLACE, payload=payload_to_write)
         # 4. persist change in Sunfish tree
         payload_written = self.storage_backend.replace(payload_to_write)
         # 5. create appropriate Event and send to subscribed EventDestinations
@@ -290,8 +290,6 @@ class Core:
             agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
-            # 3. Execute any custom handler for this object type
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.PATCH, payload=payload)
         except ResourceNotFound:
             logger.error(f"The resource to be patched ({path}) does not exist.")
         except AttributeError:
@@ -299,6 +297,8 @@ class Core:
             logger.debug(f"The object {object_type} does not have a custom handler")
             pass
 
+        # 3. Execute any custom handler for this object type
+        self.objects_handler.dispatch(object_type, path, SunfishRequestType.PATCH, payload=payload)
         # 4. persist change in Sunfish tree
         payload_written =  self.storage_backend.patch(path, payload_to_write)
         # 5. create appropriate Event and send to subscribed EventDestinations
@@ -326,19 +326,20 @@ class Core:
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
             self.objects_manager.forward_to_manager(SunfishRequestType.DELETE, path)
-            # 3. Execute any custom handler for this object type
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.DELETE)
         except ResourceNotFound:
             logger.error(f"The resource to be deleted ({path}) does not exist.")
         except AttributeError:
             # The object does not have a handler.
             logger.debug(f"The object {object_type} does not have a custom handler")
 
+        # 3. Execute any custom handler for this object type
+        self.objects_handler.dispatch(object_type, path, SunfishRequestType.DELETE)
         # 4. persist change in Sunfish tree
         list_of_impacted_objects = self.storage_backend.remove(path)
         # 5. process list of impacted objects for subscribers to ResourceEvents
         events_sent_to = self.event_handler.process_new_resourceEvents(list_of_impacted_objects)
         # 6. remove any deleted objects' URIs from Sunfish alias DB 
+        #events_sent_to = self.event_handler.removeAliasesFromSunfishDB(list_of_impacted_objects)
         #  TODO
         return f"Object {path} deleted"
 

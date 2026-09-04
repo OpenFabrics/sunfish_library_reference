@@ -296,7 +296,7 @@ class RedfishEventHandlersTable:
             # now remove all aliases for deleted URIs
 
             try:
-                pdb.set_trace()
+                #pdb.set_trace()
                 uri_aliases = RedfishEventHandler.removeAliasesFromSunfishDB(event_handler.core, new_resourceEvent_URIs)
             except Exception as e:
                 logging.error(f"Sunfish URI alias Database Cleanup error", exc_info=True)
@@ -1592,7 +1592,7 @@ class RedfishEventHandler(EventHandlerInterface):
             raise Exception
 
         try:
-            pdb.set_trace()
+            #pdb.set_trace()
             changed_URI_DB = False
             sunfish_names = copy.deepcopy(uri_aliasDB.get("Sunfish_xref_URIs",{}))
             agent_names = copy.deepcopy(uri_aliasDB.get("Agents_xref_URIs", {}))

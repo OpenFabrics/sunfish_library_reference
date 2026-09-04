@@ -38,8 +38,11 @@ class Agent:
     def is_agent_managed(cls, sunfish_core: 'sunfish.lib.core.Core', path: string):
         # if this is a top level resource, there's no need to check for the agent as no agent can own top level ones.
         # Example of top levels is Systems, Chassis, etc...
-        path_to_owner = (path.replace(sunfish_core.conf["redfish_root"], "").split("/"))
-        level = len(path_to_owner)
+        #pdb.set_trace()
+        #path_to_owner = (path.replace(sunfish_core.conf["redfish_root"], "").split("/"))
+        #level = len(path_to_owner)
+        path_to_owner = path[len(sunfish_core.conf["redfish_root"]):]
+        level = len(path_to_owner.split("/"))
         if level == 1:
             return None
 

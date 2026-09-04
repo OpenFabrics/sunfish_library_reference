@@ -40,6 +40,7 @@ class SunfishAgentManager(ObjectManagerInterface):
             # in this case there would be no parent to inherit the agent from. Here this creation request should be
             # rejected because in Sunfish only agents can create elements in the top level directories and this is done
             # via events.
+            #pdb.set_trace()
             path_elems = path.split("/")[1:-1]
             path_to_check = "".join(f"/{e}" for e in path_elems)
             # get the parent path

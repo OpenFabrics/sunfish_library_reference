@@ -80,7 +80,7 @@ class TestSunfishcoreLibrary():
     def test_post_object(self):
         json_file = tests_template.test_post_system
         path = os.path.join(self.conf["redfish_root"], "Systems")
-        pdb.set_trace()
+        #pdb.set_trace()
         assert self.core.create_object(path, json_file)
 
     def test_post_collection_exception(self):
@@ -154,6 +154,7 @@ class TestSunfishcoreLibrary():
 
     def test_event_forwarding(self, httpserver: HTTPServer):
         httpserver.expect_request("/").respond_with_data("OK")
+        #pdb.set_trace()
         #resp = self.core.handle_event(tests_template.task_event_cancelled)
         resp = self.core.event_handler.new_event(tests_template.task_event_cancelled)
         assert len(resp) == 1
@@ -298,7 +299,7 @@ class TestSunfishcoreLibrary():
         httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
         httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
         httpserver.expect_ordered_request("/", method="POST").respond_with_data("OK")
-        pdb.set_trace()
+        #pdb.set_trace()
         resp = self.core.handle_event(tests_template.upload_event2)
         # check that 2nd agent uploaded the correct number of objects (3)
         upload_list =  test_utils.check_uploaded_objects(tests_template.upload_event2, self.conf['redfish_root'])
