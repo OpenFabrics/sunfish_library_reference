@@ -339,7 +339,8 @@ class Core:
         # 5. process list of impacted objects for subscribers to ResourceEvents
         events_sent_to = self.event_handler.process_new_resourceEvents(list_of_impacted_objects)
         # 6. remove any deleted objects' URIs from Sunfish alias DB 
-        #events_sent_to = self.event_handler.removeAliasesFromSunfishDB(list_of_impacted_objects)
+        #pdb.set_trace()
+        events_sent_to = self.event_handler.removeAliasesFromSunfishDB(list_of_impacted_objects)
         #  TODO
         return f"Object {path} deleted"
 

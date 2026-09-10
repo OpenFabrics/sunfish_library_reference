@@ -297,7 +297,7 @@ class RedfishEventHandlersTable:
 
             try:
                 #pdb.set_trace()
-                uri_aliases = RedfishEventHandler.removeAliasesFromSunfishDB(event_handler.core, new_resourceEvent_URIs)
+                uri_aliases = RedfishEventHandler.removeAliasesFromSunfishDB(event_handler, new_resourceEvent_URIs)
             except Exception as e:
                 logging.error(f"Sunfish URI alias Database Cleanup error", exc_info=True)
 
@@ -1579,7 +1579,8 @@ class RedfishEventHandler(EventHandlerInterface):
 
     def removeAliasesFromSunfishDB(self,deleted_Sunfish_URIs):
         try:
-            uri_alias_file = os.path.join(os.getcwd(), self.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
+            #pdb.set_trace()
+            uri_alias_file = os.path.join(os.getcwd(), self.core.conf["backend_conf"]["fs_private"], 'URI_aliases.json')
             if os.path.exists(uri_alias_file):
                 with open(uri_alias_file, 'r') as data_json:
                     uri_aliasDB = json.load(data_json)
@@ -1589,6 +1590,7 @@ class RedfishEventHandler(EventHandlerInterface):
                 raise Exception 
 
         except:
+            pdb.set_trace()
             raise Exception
 
         try:
@@ -1622,6 +1624,7 @@ class RedfishEventHandler(EventHandlerInterface):
         except Exception as e:
             # don't change anything
             logging.error(f"Removing Deleted Aliases Failed", exc_info=True)
+            pdb.set_trace()
             pass
 
         return uri_aliasDB
