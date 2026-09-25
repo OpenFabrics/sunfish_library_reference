@@ -3,6 +3,7 @@
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 
 import os
+import json
 import string
 import uuid
 import logging
@@ -346,7 +347,6 @@ class Core:
 
     def handle_event(self, payload):
 
-        #pdb.set_trace()
         if "Context" in payload:
             context = payload["Context"]
         else:
@@ -355,32 +355,42 @@ class Core:
         sunfish_handled = False
         all_event_responses = []
         this_event_response = {}
+        stat_code_max = 0
 
         for event in payload["Events"]:
             logger.debug(f"Handling event {event['MessageId']}")
             message_id = event['MessageId'].split(".")[-1]
             event_id = event.get('EventId') or ""
             event_origin = event.get('OriginOfCondition') or {}
+            stat_code = 500
             try:
                 resp = self.event_handler.dispatch(message_id, self.event_handler, event, context)
                 if resp is not None:
                     #pdb.set_trace()
                     sunfish_handled = True
+                    if type(resp) == int:
+                        stat_code = resp
                     this_event_response["EventId"]=event_id
                     this_event_response["MessageId"]=message_id
-                    this_event_response["dispatch_response"]=resp
+                    this_event_response["dispatch_response"]=stat_code
                     this_event_response["origin"]=event_origin
                     all_event_responses.append(this_event_response)
+                    if stat_code > stat_code_max:
+                        stat_code_max = stat_code
 
             except PropertyNotFound as e:
                 logger.warning(repr(e))
                 raise e
-        # if not handled by Sunfish, do NOT forward the original event to any subscribers
-        # for now return an empty response list
+
+        # if no events are handled by Sunfish, do NOT forward the original event to any subscribers
+        # for now return an unhandled response 
         if sunfish_handled is False:
-            return []
+            return {"status": "un-processable content", "code": 422} 
         else:
-            return all_event_responses
+            if stat_code_max < 200:
+                stat_code_max = 200
+            logger.info(f"event handler returned these results: \n {json.dumps(all_event_responses, indent = 4)}")
+            return {"status": "success", "code": 200} 
 
     def _get_type(self, payload: dict, path: str = None):
         # controlla odata.type
