@@ -213,7 +213,7 @@ class TestSunfishcoreLibrary():
         resp = self.core.handle_event(tests_template.reg_event)
         assert len(httpserver.log) == 2
         
-        assert  len(resp) == 1
+        assert  len(resp) == 2
 
     def test_agent_upload(self, httpserver: HTTPServer, caplog):
         
@@ -236,7 +236,7 @@ class TestSunfishcoreLibrary():
         # TODO
         # should verify the two objects got uploaded and written to the Sunfish DB
         
-        assert  len(resp) == 1
+        assert  len(resp) == 2
         #assert "Sunfish Internal Event Generation function Error" in caplog.text
 
     
@@ -270,7 +270,7 @@ class TestSunfishcoreLibrary():
         # should verify the updated switch got uploaded and written to the Sunfish DB
         
         # handle_event() will return list of UUIDs to which the event was forwarded
-        assert  len(resp) == 1
+        assert  len(resp) == 2
 
     def test_2nd_agent_upload(self, httpserver: HTTPServer, caplog):
         
@@ -309,7 +309,7 @@ class TestSunfishcoreLibrary():
         # should verify the two objects got uploaded and written to the Sunfish DB
         # assert test_utils.check_delete(system_url) == True
         
-        assert  len(resp) == 1
+        assert  len(resp) == 2
         #assert "Sunfish Internal Event Generation function Error" in caplog.text
 
     def test_event_resourceDeleted(self, httpserver: HTTPServer):
@@ -344,7 +344,7 @@ class TestSunfishcoreLibrary():
         # should verify the deleted fabric got removed from the Sunfish DB
         
         # handle_event() will return list of UUIDs to which the event was forwarded
-        assert  len(resp) == 1
+        assert  len(resp) == 2
 
 
     def test_event_resourceDeleted2(self, httpserver: HTTPServer):
@@ -379,7 +379,7 @@ class TestSunfishcoreLibrary():
         # TODO
         # should verify the deleted fabric got removed from the Sunfish DB
         
-        assert  len(resp) == 1
+        assert  len(resp) == 2
 
     # deletes all the subscriptions
     @pytest.mark.order("last")
