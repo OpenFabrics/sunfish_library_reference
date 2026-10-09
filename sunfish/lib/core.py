@@ -3,6 +3,7 @@
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 
 import os
+import json
 import string
 import uuid
 import logging
@@ -208,12 +209,10 @@ class Core:
             # 1. check the path target of the operation exists
             # self.storage_backend.read(path)
             # above done elsewhere, too soon to do here
-            # 2. is needed first forward the request to the agent managing the object
+            # 2. if needed first forward the request to the agent managing the object
             agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.CREATE, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
-            # 3. Execute any custom handler for this object type AFTER Agent mods, if any
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.CREATE, payload=payload_to_write)
         except ResourceNotFound:
             logger.error("The collection where the resource is to be created does not exist.")
         except AgentForwardingFailure as e:
@@ -222,8 +221,16 @@ class Core:
             # The object does not have a handler.
             logger.debug(f"The object {object_type} does not have a custom handler")
             pass
+        # 3. Execute any custom handler for this object type AFTER Agent mods, if any
+        self.objects_handler.dispatch(object_type, path, SunfishRequestType.CREATE, payload=payload_to_write)
         # 4. persist change in Sunfish tree
-        return self.storage_backend.write(payload_to_write)
+        payload_written = self.storage_backend.write(payload_to_write)
+        # 5. create appropriate Event and send to subscribed EventDestinations
+        generate_resource_event = self.event_handler.resource_event_builder(SunfishRequestType.CREATE, path, payload=payload_written)
+        self.event_handler.new_event(generate_resource_event)
+        
+
+        return payload_written
 
     def replace_object(self, path: str, payload: dict):
         """Calls the correspondent replace function from the backend implementation.
@@ -242,21 +249,25 @@ class Core:
         try:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
-            # 2. is needed first forward the request to the agent managing the object
-            #self.objects_manager.forward_to_manager(SunfishRequestType.REPLACE, path, payload=payload)
+            # 2. if needed first forward the request to the agent managing the object
             agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.REPLACE, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
-            # 3. Execute any custom handler for this object type
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.REPLACE, payload=payload_to_write)
         except ResourceNotFound:
             logger.error(logger.error(f"The resource to be replaced ({path}) does not exist."))
         except AttributeError:
             # The object does not have a handler.
             logger.debug(f"The object {object_type} does not have a custom handler")
             pass
+        # 3. Execute any custom handler for this object type
+        self.objects_handler.dispatch(object_type, path, SunfishRequestType.REPLACE, payload=payload_to_write)
         # 4. persist change in Sunfish tree
-        return self.storage_backend.replace(payload_to_write)
+        payload_written = self.storage_backend.replace(payload_to_write)
+        # 5. create appropriate Event and send to subscribed EventDestinations
+        generate_resource_event = self.event_handler.resource_event_builder(SunfishRequestType.REPLACE, path, payload=payload_written)
+        self.event_handler.new_event(generate_resource_event)
+
+        return payload_written
 
     def patch_object(self, path: str, payload: dict):
         """Calls the correspondent patch function from the backend implementation.
@@ -277,12 +288,9 @@ class Core:
             # 1. check the path target of the operation exists
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
-            #self.objects_manager.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
             agent_response = self.objects_manager.forward_to_manager(SunfishRequestType.PATCH, path, payload=payload)
             if agent_response:
                 payload_to_write = agent_response
-            # 3. Execute any custom handler for this object type
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.PATCH, payload=payload)
         except ResourceNotFound:
             logger.error(f"The resource to be patched ({path}) does not exist.")
         except AttributeError:
@@ -290,8 +298,15 @@ class Core:
             logger.debug(f"The object {object_type} does not have a custom handler")
             pass
 
+        # 3. Execute any custom handler for this object type
+        self.objects_handler.dispatch(object_type, path, SunfishRequestType.PATCH, payload=payload)
         # 4. persist change in Sunfish tree
-        return self.storage_backend.patch(path, payload_to_write)
+        payload_written =  self.storage_backend.patch(path, payload_to_write)
+        # 5. create appropriate Event and send to subscribed EventDestinations
+        generate_resource_event = self.event_handler.resource_event_builder(SunfishRequestType.PATCH, path, payload=payload_written)
+        self.event_handler.new_event(generate_resource_event)
+
+        return payload_written
 
     def delete_object(self, path: string):
         """Calls the correspondent remove function from the backend implementation. Checks that the path is valid.
@@ -312,16 +327,22 @@ class Core:
             self.storage_backend.read(path)
             # 2. is needed first forward the request to the agent managing the object
             self.objects_manager.forward_to_manager(SunfishRequestType.DELETE, path)
-            # 3. Execute any custom handler for this object type
-            self.objects_handler.dispatch(object_type, path, SunfishRequestType.DELETE)
         except ResourceNotFound:
             logger.error(f"The resource to be deleted ({path}) does not exist.")
         except AttributeError:
             # The object does not have a handler.
             logger.debug(f"The object {object_type} does not have a custom handler")
 
+        # 3. Execute any custom handler for this object type
+        self.objects_handler.dispatch(object_type, path, SunfishRequestType.DELETE)
         # 4. persist change in Sunfish tree
-        self.storage_backend.remove(path)
+        list_of_impacted_objects = self.storage_backend.remove(path)
+        # 5. process list of impacted objects for subscribers to ResourceEvents
+        events_sent_to = self.event_handler.process_new_resourceEvents(list_of_impacted_objects)
+        # 6. remove any deleted objects' URIs from Sunfish alias DB 
+        #pdb.set_trace()
+        events_sent_to = self.event_handler.removeAliasesFromSunfishDB(list_of_impacted_objects)
+        #  TODO
         return f"Object {path} deleted"
 
     def handle_event(self, payload):
@@ -331,15 +352,45 @@ class Core:
         else:
             context = ""
         logger.debug("Started handling incoming events")
+        sunfish_handled = False
+        all_event_responses = []
+        this_event_response = {}
+        stat_code_max = 0
+
         for event in payload["Events"]:
             logger.debug(f"Handling event {event['MessageId']}")
             message_id = event['MessageId'].split(".")[-1]
+            event_id = event.get('EventId') or ""
+            event_origin = event.get('OriginOfCondition') or {}
+            stat_code = 500
             try:
-                self.event_handler.dispatch(message_id, self.event_handler, event, context)
+                resp = self.event_handler.dispatch(message_id, self.event_handler, event, context)
+                if resp is not None:
+                    #pdb.set_trace()
+                    sunfish_handled = True
+                    if type(resp) == int:
+                        stat_code = resp
+                    this_event_response["EventId"]=event_id
+                    this_event_response["MessageId"]=message_id
+                    this_event_response["dispatch_response"]=stat_code
+                    this_event_response["origin"]=event_origin
+                    all_event_responses.append(this_event_response)
+                    if stat_code > stat_code_max:
+                        stat_code_max = stat_code
+
             except PropertyNotFound as e:
                 logger.warning(repr(e))
                 raise e
-        return self.event_handler.new_event(payload)
+
+        # if no events are handled by Sunfish, do NOT forward the original event to any subscribers
+        # for now return an unhandled response 
+        if sunfish_handled is False:
+            return {"status": "un-processable content", "code": 422} 
+        else:
+            if stat_code_max < 200:
+                stat_code_max = 200
+            logger.info(f"event handler returned these results: \n {json.dumps(all_event_responses, indent = 4)}")
+            return {"status": "success", "code": 200} 
 
     def _get_type(self, payload: dict, path: str = None):
         # controlla odata.type

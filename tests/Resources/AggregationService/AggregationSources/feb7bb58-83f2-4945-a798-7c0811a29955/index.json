@@ -8,7 +8,6 @@
             "@odata.id": "/redfish/v1/AggregationService/ConnectionMethods/Pytest1"
         },
         "ResourcesAccessed": [
-            "/redfish/v1/Fabrics/Pytest1"
         ]
     }
 }

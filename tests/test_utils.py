@@ -19,6 +19,16 @@ def check_object(payload, redfish_root):
     path = get_resource_path(payload, redfish_root)
     return os.path.exists(path) and os.path.exists(os.path.join(path, 'index.json')) 
 
+def check_uploaded_objects(upload_event, redfish_root):
+    aggSrc_Id = upload_event["Context"]
+    aggSrc_path = os.path.join(os.getcwd(), 'Resources','AggregationService','AggregationSources',\
+            aggSrc_Id, 'index.json')
+    with open(aggSrc_path, "r", encoding="utf-8") as file:
+        aggSrc_obj = json.load(file)
+    # extract any ResourcesAccessed
+    things_uploaded = aggSrc_obj.get("Links", {}).get("ResourcesAccessed", [])
+    return things_uploaded
+
 def check_delete(path):
     if os.path.exists(path):
         print('non eliminato')
