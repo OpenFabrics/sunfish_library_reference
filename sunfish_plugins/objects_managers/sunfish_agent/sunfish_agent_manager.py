@@ -91,7 +91,7 @@ class SunfishAgentManager(ObjectManagerInterface):
         else:
             logger.debug(f"{path} is not managed by an agent")
 
-        return agent_response #shouldn't this be obj_modified??!
+        return agent_response 
 
     def xlateToAgentURIs(self, sunfish_obj ):
 
