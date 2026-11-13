@@ -1558,33 +1558,33 @@ class RedfishEventHandler(EventHandlerInterface):
                     logger.debug(f"sent event to {len(was_sent_to)} Destinations")
                     logger.debug(json.dumps(was_sent_to, indent=4))
             except:
-                print(f"process_new_resourceEvents: Exception in CREATED")
+                logger.error(f"process_new_resourceEvents: Exception in CREATED")
                 pass
 
         if "changed" in sunfish_object_URIs:
             try:
-                for created_URI in sunfish_object_URIs["changed"]:
-                    eventOrigin_path = created_URI
-                    eventOrigin["@odata.id"] = created_URI
+                for change_uri in sunfish_object_URIs["changed"]:
+                    eventOrigin_path = change_uri
+                    eventOrigin["@odata.id"] = change_uri
                     action_type = SunfishRequestType.PATCH
                     event_to_send = self.resource_event_builder(action_type, eventOrigin_path, eventOrigin) 
                     was_sent_to.extend(RedfishEventHandler.new_event(self, event_to_send))
             except:
-                print(f"process_new_resourceEvents: Exception in CHANGED")
+                logger.error(f"process_new_resourceEvents: Exception in CHANGED")
                 pass
 
         if "deleted" in sunfish_object_URIs:
             try:
-                for created_URI in sunfish_object_URIs["deleted"]:
-                    eventOrigin_path = created_URI
-                    eventOrigin["@odata.id"] = created_URI
+                for deleted_uri in sunfish_object_URIs["deleted"]:
+                    eventOrigin_path = deleted_uri
+                    eventOrigin["@odata.id"] = deleted_uri
                     action_type = SunfishRequestType.DELETE
                     event_to_send = self.resource_event_builder(action_type, eventOrigin_path, eventOrigin) 
-                    if "deleted_types" in sunfish_object_URIs and created_URI in sunfish_object_URIs["deleted_types"]:
-                        origin_type = sunfish_object_URIs["deleted_types"][created_URI]
+                    if "deleted_types" in sunfish_object_URIs and deleted_uri in sunfish_object_URIs["deleted_types"]:
+                        origin_type = sunfish_object_URIs["deleted_types"][deleted_uri]
                     was_sent_to.extend(RedfishEventHandler.new_event(self, event_to_send, origin_type))
             except:
-                print(f"process_new_resourceEvents: Exception in DELETED")
+                logger.error(f"process_new_resourceEvents: Exception in DELETED")
                 pass
 
         return was_sent_to

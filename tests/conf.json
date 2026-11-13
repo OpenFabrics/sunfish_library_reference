@@ -18,7 +18,7 @@
         "event_handler": "redfish"
     },
     "objects_handler": {
-        "module_name": "objects_handlers.sunfish_server.redfish_object_handler",
-        "class_name": "RedfishObjectHandler"
+        "module_name": "objects_handlers.swordfish_server.swordfish_object_handler",
+        "class_name": "SwordfishObjectHandler"
     }
 }
