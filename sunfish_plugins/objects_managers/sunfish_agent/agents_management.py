@@ -38,17 +38,20 @@ class Agent:
     def is_agent_managed(cls, sunfish_core: 'sunfish.lib.core.Core', path: string):
         # if this is a top level resource, there's no need to check for the agent as no agent can own top level ones.
         # Example of top levels is Systems, Chassis, etc...
-        path_to_owner = (path.replace(sunfish_core.conf["redfish_root"], "").split("/"))
-        level = len(path_to_owner)
+        #pdb.set_trace()
+        #path_to_owner = (path.replace(sunfish_core.conf["redfish_root"], "").split("/"))
+        #level = len(path_to_owner)
+        path_to_owner = path[len(sunfish_core.conf["redfish_root"]):]
+        level = len(path_to_owner.split("/"))
         if level == 1:
             return None
 
         # path passed in is to parent object, which is usually a collection
         collection = sunfish_core.storage_backend.read(path)
         if 'Collection' in collection["@odata.type"]:
-            print(f"parent obj {path} is a Collection.")
-            new_path = os.path.join('/'.join(path_to_owner[:-1]))
-            print(f"grandparent obj at {new_path}")
+            logger.debug(f"parent obj {path} is a Collection.")
+            new_path = os.path.dirname(path)
+            logger.debug(f"grandparent obj at {new_path}")
             collection = sunfish_core.storage_backend.read(new_path)
             logger.debug(f"Checking if the object {new_path} is managed by an Agent")
             if "Oem" in collection and "Sunfish_RM" in collection["Oem"] and "ManagingAgent" in collection["Oem"]["Sunfish_RM"]:

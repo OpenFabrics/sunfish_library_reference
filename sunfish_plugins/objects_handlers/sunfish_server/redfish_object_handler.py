@@ -3,6 +3,7 @@
 # The full license terms are available here: https://github.com/OpenFabrics/sunfish_library_reference/blob/main/LICENSE
 import logging
 import string
+import pdb
 from typing import Optional
 
 import sunfish.lib.core
@@ -26,7 +27,8 @@ class RedfishObjectHandlersTable:
             core.subscription_handler.delete_subscription(payload)
             core.subscription_handler.new_subscription(payload)
         elif operation == SunfishRequestType.DELETE:
-            core.subscription_handler.delete_subscription(path)
+            subscriber_id = path.split("/")[-1]
+            core.subscription_handler.delete_subscription(subscriber_id)
 
 
 class RedfishObjectHandler(ObjectHandlerInterface):

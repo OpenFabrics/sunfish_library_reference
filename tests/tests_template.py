@@ -248,7 +248,43 @@ sub3 = {
     "OriginResources": [{
         "@odata.id": "/redfish/v1/Systems/1"
     }],
-    "SubordinateResources": "True"
+    "SubordinateResources": True
+}
+
+
+sub4 = {
+    "@odata.type": "#EventDestination.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "RegistryPrefixes": [
+        "ResourceEvent"
+    ]
+    ,
+    "ExcludeRegistryPrefixes": [
+        "Basic"
+    ],
+    "OriginResources": [{
+        "@odata.id": "/redfish/v1/Fabrics/Pytest1"
+    }],
+    "SubordinateResources": True
+}
+
+
+sub5 = {
+    "@odata.type": "#EventDestination.EventDestination",
+    "Destination": "http://localhost:8080",
+    "EventFormatType": "Event",
+    "RegistryPrefixes": [
+        "ResourceEvent"
+    ]
+    ,
+    "ExcludeRegistryPrefixes": [
+        "Basic"
+    ],
+    "OriginResources": [{
+        "@odata.id": "/redfish/v1/Fabrics"
+    }],
+    "SubordinateResources": True
 }
 
 wrong_sub = {
@@ -347,7 +383,7 @@ event_aggregation_source_discovered = {
 aggregation_source = {
     "@Redfish.Copyright": "Copyright 2014-2021 SNIA. All rights reserved.",
     "@odata.id": "/redfish/v1/AggregationService/AggregationSources/afd9e24c-20d1-479e-be24-4ad6a62f7197",
-    "@odata.type": "#AggregationSource.v1_2_afd9e24c-20d1-479e-be24-4ad6a62f7197.AggregationSource",
+    "@odata.type": "#AggregationSource.v1_2.AggregationSource",
     "HostName": "http://localhost:8080",
     "Id": "afd9e24c-20d1-479e-be24-4ad6a62f7197",
     "Links": {
@@ -496,6 +532,7 @@ reg_event = {
     "Name": "AggregationSourceDiscovered",
     "Context": "",
     "Events": [ {
+        "EventId":"0102",
         "Severity": "Ok",
         "Message": "A aggregation source of connection method",
         "MessageId": "ResourceEvent.1.x.AggregationSourceDiscovered",
@@ -511,9 +548,60 @@ upload_event = {
     "Name": "ResourceCreated",
     "Context": "feb7bb58-83f2-4945-a798-7c0811a29955",
     "Events": [ {
+        "EventId":"0506",
         "Severity": "Ok",
         "Message": "A new Fabric resource created",
         "MessageId": "ResourceEvent.1.x.ResourceCreated",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/Pytest1"
+        }
+    } ]
+}
+
+
+upload_event2 = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "ResourceCreated",
+    "Context": "feb0bb58-83f2-4945-a798-7c0811a29955",
+    "Events": [ {
+        "EventId":"0507",
+        "Severity": "Ok",
+        "Message": "A new Fabric resource created",
+        "MessageId": "ResourceEvent.1.x.ResourceCreated",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/Pytest1"
+        }
+    } ]
+}
+
+delete_fabric_event = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "ResourceDeleted",
+    "Context": "feb7bb58-83f2-4945-a798-7c0811a29955",
+    "Events": [ {
+        "EventId":"2121",
+        "Severity": "Ok",
+        "Message": "A Fabric resource deleted",
+        "MessageId": "ResourceEvent.1.x.ResourceDeleted",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/Pytest1"
+        }
+    } ]
+}
+
+
+delete_fabric_event2 = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "ResourceDeleted",
+    "Context": "feb0bb58-83f2-4945-a798-7c0811a29955",
+    "Events": [ {
+        "EventId":"2123",
+        "Severity": "Ok",
+        "Message": "A Fabric resource deleted",
+        "MessageId": "ResourceEvent.1.x.ResourceDeleted",
         "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
         "OriginOfCondition": {
             "@odata.id": "/redfish/v1/Fabrics/Pytest1"
@@ -555,6 +643,24 @@ fabrics_pytest1 = {
     "UUID": "1af883ee-d4b7-400d-afb2-536d2c2aea31"
 }
 
+
+fabrics_pytest1b = {
+    "@odata.id": "/redfish/v1/Fabrics/Pytest1",
+    "@odata.type": "#Fabric.v1_3_0.Fabric",
+    "Description": "Pytest CXL Fabric",
+    "FabricType": "CXL",
+    "Id": "CXL",
+    "Name": "CXL Fabric",
+    "Status": {
+        "Health": "OK",
+        "State": "Enabled"
+    },
+    "Switches": {
+        "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches"
+    },
+    "UUID": "1af883ee-d4b7-400d-afb2-536d2c2aea32"
+}
+
 fabrics_switch_collection = {
     "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches",
     "@odata.type": "#SwitchesCollection.SwitchesCollection",
@@ -586,5 +692,53 @@ fabrics_switch_pytest1 = {
     },
     "SwitchType": "CXL",
     "UUID": "bfd8ca1e-b5b5-4c0f-a3cf-4d741b85b1fb"
+}
+
+fabrics_switch_pytest1b = {
+    "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches/Pytest1",
+    "@odata.type": "#Switch.v1_9_1.Switch",
+    "CXL": {
+        "MaxVCSsSupported": 4,
+        "TotalNumbervPPBs": 4,
+        "VCS": {
+            "HDMDecoders": 12
+        }
+    },
+    "Id": "Pytest1",
+    "Name": "CXL Fabric Switch",
+    "Status": {
+        "Health": "OK",
+        "HealthRollup": "OK",
+        "State": "Enabled"
+    },
+    "SwitchType": "CXL",
+    "UUID": "bfd8ca1e-b5b5-4c0f-a3cf-4d741b85b100"
+}
+
+update_switch = {
+    "@odata.type": "#Event.v1_7_0.Event",
+    "Name": "ResourceChanged",
+    "Context": "feb7bb58-83f2-4945-a798-7c0811a29955",
+    "Events": [ {
+        "EventId":"0809",
+        "Severity": "Ok",
+        "Message": "A new Status for Switch resource",
+        "MessageId": "ResourceEvent.1.x.ResourceChanged",
+        "MessageArgs": [ "Redfish", "http://127.0.0.1:8080" ],
+        "OriginOfCondition": {
+            "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches/Pytest1"
+        }
+    } ]
+}
+
+fabrics_switch_pytest1_modified = {
+    "@odata.id": "/redfish/v1/Fabrics/Pytest1/Switches/Pytest1",
+    "@odata.type": "#Switch.v1_9_1.Switch",
+    "Id": "Pytest1",
+    "Status": {
+        "Health": "OK",
+        "HealthRollup": "OK",
+        "State": "Disabled"
+    }
 }
 
