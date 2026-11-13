@@ -203,7 +203,6 @@ class Core:
             raise CollectionNotSupported()
 
         payload_to_write = payload
-        #pdb.set_trace()
 
         try:
             # 1. check the path target of the operation exists
@@ -340,7 +339,6 @@ class Core:
         # 5. process list of impacted objects for subscribers to ResourceEvents
         events_sent_to = self.event_handler.process_new_resourceEvents(list_of_impacted_objects)
         # 6. remove any deleted objects' URIs from Sunfish alias DB 
-        #pdb.set_trace()
         events_sent_to = self.event_handler.removeAliasesFromSunfishDB(list_of_impacted_objects)
         #  TODO
         return f"Object {path} deleted"
@@ -366,7 +364,6 @@ class Core:
             try:
                 resp = self.event_handler.dispatch(message_id, self.event_handler, event, context)
                 if resp is not None:
-                    #pdb.set_trace()
                     sunfish_handled = True
                     if type(resp) == int:
                         stat_code = resp
